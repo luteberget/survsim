@@ -1,3 +1,7 @@
+pub mod problem;
+pub mod report;
+pub mod backend;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Serialize, Deserialize,Debug)]
@@ -30,53 +34,23 @@ impl Point {
 
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Hash)]
 pub enum TaskRef {
     FixedTask(usize),
     Contact(usize),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Goal {
     TaskRef(TaskRef),
     Wait,
     Base,
 }
 
-#[derive(Serialize, Deserialize,Debug)]
-pub struct FixedTaskReport {
-    pub loc :Point,
-}
-
-
-#[derive(Serialize, Deserialize,Debug)]
-pub struct ContactReport {
-    pub loc :Point,
-    pub in_sight :bool,
-}
-
-#[derive(Serialize, Deserialize,Debug)]
-pub struct DroneReport {
+#[derive(Deserialize, Serialize, Debug)]
+pub struct GoalMsg {
+    pub drone: usize,
     pub goal: Goal,
-    pub loc: Point,
-    pub base_dist: f32,
-    pub fixed_task_dists: Vec<f32>,
-    pub battery_level: f32,
-    pub battery_consumption_traveling: f32,
-    pub battery_consumption_hovering: f32,
-    pub tasks_in_sight: Vec<TaskRef>,
-}
-
-#[derive(Clone, Serialize,Deserialize, Debug)]
-pub struct FixedDists {
-    pub fixed_task_base_dist: Vec<f32>,
-    pub fixed_task_dists: Vec<Vec<f32>>,
-}
-
-#[derive(Serialize,Deserialize, Debug)]
-pub struct Report {
-    pub current_time: f32,
-    pub fixed_dists: FixedDists,
-    pub drones: Vec<DroneReport>,
-    pub fixed_tasks :Vec<FixedTaskReport>,
-    pub contacts :Vec<ContactReport>,
 }

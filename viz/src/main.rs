@@ -1,5 +1,5 @@
 use eframe::egui::{self, Align2, Color32, RichText};
-use survsim_structs::Report;
+use survsim_structs::report::Report;
 
 struct MyApp {
     report: Option<Report>,

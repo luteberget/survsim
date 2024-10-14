@@ -1,7 +1,7 @@
 use paho_mqtt::Message;
-use serde::Deserialize;
 use survsim_structs::{
-    ContactReport, DroneReport, FixedDists, FixedTaskReport, Goal, Point, Report, TaskRef,
+    report::{ContactReport, DistanceList, DroneReport, FixedTaskReport, Location, Report},
+    Goal, GoalMsg, Point, TaskRef,
 };
 
 pub struct FixedTaskState {
@@ -31,7 +31,6 @@ pub struct World {
     drones: Vec<DroneState>,
     contacts: Vec<ContactState>,
     fixed_tasks: Vec<FixedTaskState>,
-    fixed_dists: FixedDists,
 }
 
 impl World {
@@ -83,19 +82,19 @@ impl World {
             },
         ];
 
-        let fixed_dists = FixedDists {
-            fixed_task_base_dist: fixed_tasks
-                .iter()
-                .map(|p| p.loc.dist(&base_ground))
-                .collect(),
-            fixed_task_dists: (0..fixed_tasks.len())
-                .map(|i| {
-                    (0..fixed_tasks.len())
-                        .map(|j| fixed_tasks[i].loc.dist(&fixed_tasks[j].loc))
-                        .collect()
-                })
-                .collect(),
-        };
+        // let fixed_dists = FixedDists {
+        //     fixed_task_base_dist: fixed_tasks
+        //         .iter()
+        //         .map(|p| p.loc.dist(&base_ground))
+        //         .collect(),
+        //     fixed_task_dists: (0..fixed_tasks.len())
+        //         .map(|i| {
+        //             (0..fixed_tasks.len())
+        //                 .map(|j| fixed_tasks[i].loc.dist(&fixed_tasks[j].loc))
+        //                 .collect()
+        //         })
+        //         .collect(),
+        // };
 
         let p1 = vec![
             Point {
@@ -177,12 +176,12 @@ impl World {
             fixed_tasks,
             drones,
             contacts,
-            fixed_dists,
         }
     }
 
     pub fn simulate(&mut self, dt: f32) -> Report {
         const SIGHTING_DIST: f32 = 150.0;
+        let base = self.drones[0].base_air;
 
         fn go_towards(max_dist: &mut f32, source: &mut Point, target: Point) -> bool {
             let dx = target.x - source.x;
@@ -272,7 +271,9 @@ impl World {
             .drones
             .iter()
             .map(|d| {
-                let base_dist = d.curr_loc.dist_xy(&d.base_air);
+                let at_base = d.curr_loc.eq_xy(&d.base_air);
+                let on_ground = d.curr_loc.eq_xyz(&d.base_ground);
+
                 let fixed_task_dists = self
                     .fixed_tasks
                     .iter()
@@ -299,10 +300,10 @@ impl World {
                 }
 
                 DroneReport {
-                    base_dist,
+                    at_base,
+                    is_airborne: !on_ground,
                     goal: d.goal,
                     loc: d.curr_loc,
-                    fixed_task_dists,
                     battery_level: d.battery_level,
                     battery_consumption_traveling: d.battery_consumption_traveling,
                     battery_consumption_hovering: d.battery_consumption_hovering,
@@ -330,16 +331,91 @@ impl World {
             })
             .collect();
 
+        let mut distances = DistanceList {
+            entries: Default::default(),
+        };
+
+        // Base to fixed, and fixed to fixed.
+        for (i, f1) in self.fixed_tasks.iter().enumerate() {
+            distances.entries.push((
+                Location::Base,
+                Location::Task(TaskRef::FixedTask(i)),
+                base.dist(&f1.loc),
+            ));
+            for (j, f2) in self.fixed_tasks.iter().enumerate() {
+                if i < j {
+                    distances.entries.push((
+                        Location::Task(TaskRef::FixedTask(i)),
+                        Location::Task(TaskRef::FixedTask(j)),
+                        f1.loc.dist(&f2.loc),
+                    ));
+                }
+            }
+        }
+
+        // Contact to base, contact to contact, and fixed to contact.
+        for (i, c1) in self.contacts.iter().enumerate() {
+            distances.entries.push((
+                Location::Base,
+                Location::Task(TaskRef::Contact(i)),
+                base.dist(&c1.curr_loc),
+            ));
+            for (j, c2) in self.contacts.iter().enumerate() {
+                if i < j {
+                    distances.entries.push((
+                        Location::Task(TaskRef::Contact(i)),
+                        Location::Task(TaskRef::Contact(j)),
+                        c1.curr_loc.dist(&c2.curr_loc),
+                    ));
+                }
+            }
+            for (j, f) in self.fixed_tasks.iter().enumerate() {
+                distances.entries.push((
+                    Location::Task(TaskRef::Contact(i)),
+                    Location::Task(TaskRef::FixedTask(j)),
+                    f.loc.dist(&c1.curr_loc),
+                ));
+            }
+        }
+
+        // Drone to base, drone to fixed and drone to contact
+        for (i, d) in self.drones.iter().enumerate() {
+            distances.entries.push((
+                Location::Base,
+                Location::DroneInitial(i),
+                base.dist(&d.curr_loc),
+            ));
+
+            for (j, f) in self.fixed_tasks.iter().enumerate() {
+                distances.entries.push((
+                    Location::Task(TaskRef::FixedTask(j)),
+                    Location::DroneInitial(i),
+                    f.loc.dist(&d.curr_loc),
+                ));
+            }
+
+            for (j, c) in self.contacts.iter().enumerate() {
+                distances.entries.push((
+                    Location::Task(TaskRef::Contact(j)),
+                    Location::DroneInitial(i),
+                    c.curr_loc.dist(&d.curr_loc),
+                ));
+            }
+        }
+
+        let fixed_tasks = self
+            .fixed_tasks
+            .iter()
+            .map(|t| FixedTaskReport { loc: t.loc })
+            .collect();
+
         Report {
             current_time: self.curr_time,
-            fixed_dists: self.fixed_dists.clone(),
+            takeoff_separation_time: 5.0,
             drones,
             contacts,
-            fixed_tasks: self
-                .fixed_tasks
-                .iter()
-                .map(|t| FixedTaskReport { loc: t.loc })
-                .collect(),
+            distances,
+            fixed_tasks,
         }
     }
 }
@@ -369,7 +445,9 @@ fn main() {
 
     println!("survsim_sim main loop starting.");
     loop {
-        let sim_dt = last_updated.elapsed().as_secs_f32();
+        const SIM_SPEED: f32 = 10.0;
+
+        let sim_dt = SIM_SPEED * last_updated.elapsed().as_secs_f32();
         // println!("updateing {}", sim_dt);
         let report = world.simulate(sim_dt);
         // println!("report {:?}", report);
@@ -390,12 +468,6 @@ fn main() {
                     println!("none");
                 }
                 Ok(Some(msg)) => {
-                    #[derive(Deserialize)]
-                    struct GoalMsg {
-                        drone: usize,
-                        goal: Goal,
-                    }
-
                     match serde_json::from_slice::<GoalMsg>(msg.payload_str().as_bytes()) {
                         Ok(goal_msg) => {
                             world.drones[goal_msg.drone].goal = goal_msg.goal;
