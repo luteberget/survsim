@@ -180,7 +180,7 @@ impl World {
     }
 
     pub fn simulate(&mut self, dt: f32) -> Report {
-        const SIGHTING_DIST: f32 = 150.0;
+        const SIGHTING_DIST: f32 = 90.0;
         let base = self.drones[0].base_air;
 
         fn go_towards(max_dist: &mut f32, source: &mut Point, target: Point) -> bool {
@@ -301,6 +301,7 @@ impl World {
 
                 DroneReport {
                     at_base,
+                    base: d.base_air,
                     is_airborne: !on_ground,
                     goal: d.goal,
                     loc: d.curr_loc,

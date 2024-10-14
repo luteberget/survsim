@@ -33,6 +33,7 @@ pub struct ContactReport {
 pub struct DroneReport {
     pub goal: Goal,
     pub loc: Point,
+    pub base :Point,
     pub battery_level: f32,
     pub battery_consumption_traveling: f32,
     pub battery_consumption_hovering: f32,

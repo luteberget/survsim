@@ -1,5 +1,5 @@
 use eframe::egui::{self, Align2, Color32, RichText};
-use survsim_structs::report::Report;
+use survsim_structs::{report::Report, Goal, TaskRef};
 
 struct MyApp {
     report: Option<Report>,
@@ -54,11 +54,102 @@ impl eframe::App for MyApp {
                             plot_ui.text(
                                 egui_plot::Text::new(
                                     [d.loc.x as f64, d.loc.y as f64].into(),
-                                    RichText::new(&format!("d ({}%)", (d.battery_level * 100.0).round() as i32)).size(18.0),
+                                    RichText::new(&format!(
+                                        "d ({}%)",
+                                        (d.battery_level * 100.0).round() as i32
+                                    ))
+                                    .size(18.0),
                                 )
                                 .color(Color32::BLUE)
                                 .anchor(Align2::CENTER_TOP),
                             );
+
+                            let mut goal_task: Option<TaskRef> = None;
+
+                            match d.goal {
+                                Goal::TaskRef(task_ref) => {
+                                    goal_task = Some(task_ref);
+                                    let is_sighted = d.tasks_in_sight.contains(&task_ref);
+                                    let target_pt = match task_ref {
+                                        TaskRef::FixedTask(i) => report.fixed_tasks[i].loc,
+                                        TaskRef::Contact(i) => report.contacts[i].loc,
+                                    };
+                                    plot_ui.arrows(
+                                        egui_plot::Arrows::new(
+                                            egui_plot::PlotPoints::from(vec![[
+                                                d.loc.x as f64,
+                                                d.loc.y as f64,
+                                            ]]),
+                                            egui_plot::PlotPoints::from(vec![[
+                                                target_pt.x as f64,
+                                                target_pt.y as f64,
+                                            ]]),
+                                        )
+                                        .tip_length(10.0)
+                                        .color(if is_sighted {
+                                            Color32::DARK_BLUE
+                                        } else {
+                                            Color32::BLACK
+                                        })
+                                        .highlight(!is_sighted),
+                                    );
+                                }
+                                Goal::Wait => {
+                                    if d.is_airborne {
+                                        plot_ui.text(
+                                            egui_plot::Text::new(
+                                                [d.loc.x as f64, d.loc.y as f64].into(),
+                                                RichText::new("?").size(25.0),
+                                            )
+                                            .color(Color32::YELLOW)
+                                            .anchor(Align2::LEFT_BOTTOM),
+                                        )
+                                    }
+                                }
+                                Goal::Base => {
+                                    if !d.at_base {
+                                        plot_ui.arrows(
+                                            egui_plot::Arrows::new(
+                                                egui_plot::PlotPoints::from(vec![[
+                                                    d.loc.x as f64,
+                                                    d.loc.y as f64,
+                                                ]]),
+                                                egui_plot::PlotPoints::from(vec![[
+                                                    d.base.x as f64,
+                                                    d.base.y as f64,
+                                                ]]),
+                                            )
+                                            .tip_length(10.0),
+                                        );
+                                    }
+                                }
+                            }
+
+                            for (i, ft) in report.fixed_tasks.iter().enumerate() {
+                                let t = TaskRef::FixedTask(i);
+                                if Some(t) != goal_task && d.tasks_in_sight.contains(&t) {
+                                    plot_ui.line(
+                                        egui_plot::Line::new(vec![
+                                            [d.loc.x as f64, d.loc.y as f64],
+                                            [ft.loc.x as f64, ft.loc.y as f64],
+                                        ])
+                                        .color(Color32::LIGHT_BLUE),
+                                    );
+                                }
+                            }
+
+                            for (i, c) in report.contacts.iter().enumerate() {
+                                let t = TaskRef::Contact(i);
+                                if Some(t) != goal_task && d.tasks_in_sight.contains(&t) {
+                                    plot_ui.line(
+                                        egui_plot::Line::new(vec![
+                                            [d.loc.x as f64, d.loc.y as f64],
+                                            [c.loc.x as f64, c.loc.y as f64],
+                                        ])
+                                        .color(Color32::LIGHT_BLUE),
+                                    );
+                                }
+                            }
                         }
                     }
                 });
