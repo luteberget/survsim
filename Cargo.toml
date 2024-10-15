@@ -3,4 +3,4 @@ resolver = "2"
 
 members = [ "structs",
  "sim"
-, "viz", "controller"]
+, "viz", "controller", "planner_colgen"]

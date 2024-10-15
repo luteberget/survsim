@@ -2,16 +2,15 @@ use core::f32;
 
 use backend::SurvsimBackend;
 use executive::Executive;
-use plan::{Dependencies, Plan, PlanTask, Planner};
+use survsim_structs::plan::{Dependencies, Plan, PlanTask, Planner};
 use survsim_structs::{backend::Task, problem::Problem, TaskRef};
 
 pub mod backend;
 pub mod executive;
 pub mod parse_report;
-pub mod plan;
 
 fn main() {
-    let mut planner: Planner = Box::new(simple_planner);
+    let mut planner: Planner = Box::new(survsim_planner_colgen::solve);
     let mut executive = Executive::new(&mut planner);
     SurvsimBackend::new().main_loop(|backend| executive.update(backend));
 }

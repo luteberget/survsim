@@ -1,4 +1,4 @@
-use survsim_structs::{backend::Task, problem::Problem};
+use crate::{backend::Task, problem::Problem};
 
 pub type Planner = Box<dyn FnMut(&Problem) -> Plan>;
 

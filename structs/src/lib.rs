@@ -1,6 +1,7 @@
 pub mod problem;
 pub mod report;
 pub mod backend;
+pub mod plan;
 
 use serde::{Deserialize, Serialize};
 

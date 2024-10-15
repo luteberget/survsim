@@ -1,7 +1,7 @@
 use core::f32;
 use std::collections::HashMap;
 
-use crate::plan::{Plan, PlanTask, Planner};
+use survsim_structs::plan::{Plan, PlanTask, Planner};
 use survsim_structs::{
     backend::{Backend, BackendTaskRef, DroneTask},
     TaskRef,
