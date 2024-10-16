@@ -42,6 +42,12 @@ pub enum TaskRef {
     Contact(usize),
 }
 
+impl Default for TaskRef {
+    fn default() -> Self {
+        Self::FixedTask(0)
+    }
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Goal {

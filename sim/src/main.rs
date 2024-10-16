@@ -38,6 +38,52 @@ impl World {
         self.drones[drone_idx].goal = goal;
     }
 
+    pub fn tiny() -> World {
+     // Default hard-coded scenario setup
+
+     let base_air = Point {
+        x: 180.0,
+        y: 600.0 - 540.0,
+        z: 0.0,
+    };
+    let base_ground = Point {
+        z: -50.0,
+        ..base_air
+    };
+
+    let fixed_tasks = vec![
+        FixedTaskState {
+            loc: Point {
+                x: 66.0,
+                y: 600.0 - 300.0,
+                z: 0.0,
+            },
+        },
+    ];
+
+    // Typical distances are 400. Should travel there in 5 minutes = 300 sec. Velocity: 1.3
+
+    let drones = (0..1)
+        .map(|_| DroneState {
+            base_air,
+            base_ground,
+            battery_consumption_hovering: 0.00037, // 45 minutes on full battery
+            battery_consumption_traveling: 0.0011, // 15 minutes on full battery
+            battery_level: 1.0,
+            curr_loc: base_ground,
+            goal: Goal::Wait,
+            velocity: 1.3,
+        })
+        .collect();
+
+    World {
+        curr_time: 0.0,
+        fixed_tasks,
+        drones,
+        contacts: Default::default(),
+    }   
+    }
+
     pub fn new() -> World {
         // Default hard-coded scenario setup
 
@@ -142,19 +188,19 @@ impl World {
                 waypoints: p1.clone(),
                 curr_waypoint: 0,
                 curr_loc: p1[0],
-                velocity: 4.0,
+                velocity: 0.5,
             },
             ContactState {
                 waypoints: p2.clone(),
                 curr_waypoint: 0,
                 curr_loc: p2[0],
-                velocity: 4.0,
+                velocity: 0.5,
             },
             ContactState {
                 waypoints: p3.clone(),
                 curr_waypoint: 0,
                 curr_loc: p3[0],
-                velocity: 4.0,
+                velocity: 0.5,
             },
         ];
 
@@ -162,13 +208,13 @@ impl World {
             .map(|_| DroneState {
                 base_air,
                 base_ground,
-                battery_consumption_hovering: 0.001,
-                battery_consumption_traveling: 0.002,
+                battery_consumption_hovering: 0.00037, // 45 minutes on full battery
+                battery_consumption_traveling: 0.0011, // 15 minutes on full battery
                 battery_level: 1.0,
                 curr_loc: base_ground,
                 goal: Goal::Wait,
-                velocity: 8.0,
-            })
+                velocity: 1.3,
+                })
             .collect();
 
         World {
@@ -336,19 +382,21 @@ impl World {
             entries: Default::default(),
         };
 
+        let velocity = self.drones[0].velocity;
+
         // Base to fixed, and fixed to fixed.
         for (i, f1) in self.fixed_tasks.iter().enumerate() {
             distances.entries.push((
                 Location::Base,
                 Location::Task(TaskRef::FixedTask(i)),
-                base.dist(&f1.loc),
+                base.dist(&f1.loc) / velocity,
             ));
             for (j, f2) in self.fixed_tasks.iter().enumerate() {
                 if i < j {
                     distances.entries.push((
                         Location::Task(TaskRef::FixedTask(i)),
                         Location::Task(TaskRef::FixedTask(j)),
-                        f1.loc.dist(&f2.loc),
+                        f1.loc.dist(&f2.loc) / velocity,
                     ));
                 }
             }
@@ -359,14 +407,14 @@ impl World {
             distances.entries.push((
                 Location::Base,
                 Location::Task(TaskRef::Contact(i)),
-                base.dist(&c1.curr_loc),
+                base.dist(&c1.curr_loc) / velocity,
             ));
             for (j, c2) in self.contacts.iter().enumerate() {
                 if i < j {
                     distances.entries.push((
                         Location::Task(TaskRef::Contact(i)),
                         Location::Task(TaskRef::Contact(j)),
-                        c1.curr_loc.dist(&c2.curr_loc),
+                        c1.curr_loc.dist(&c2.curr_loc) / velocity,
                     ));
                 }
             }
@@ -374,7 +422,7 @@ impl World {
                 distances.entries.push((
                     Location::Task(TaskRef::Contact(i)),
                     Location::Task(TaskRef::FixedTask(j)),
-                    f.loc.dist(&c1.curr_loc),
+                    f.loc.dist(&c1.curr_loc) / velocity,
                 ));
             }
         }
@@ -384,14 +432,14 @@ impl World {
             distances.entries.push((
                 Location::Base,
                 Location::DroneInitial(i),
-                base.dist(&d.curr_loc),
+                base.dist(&d.curr_loc) / velocity,
             ));
 
             for (j, f) in self.fixed_tasks.iter().enumerate() {
                 distances.entries.push((
                     Location::Task(TaskRef::FixedTask(j)),
                     Location::DroneInitial(i),
-                    f.loc.dist(&d.curr_loc),
+                    f.loc.dist(&d.curr_loc) / velocity,
                 ));
             }
 
@@ -399,7 +447,7 @@ impl World {
                 distances.entries.push((
                     Location::Task(TaskRef::Contact(j)),
                     Location::DroneInitial(i),
-                    c.curr_loc.dist(&d.curr_loc),
+                    c.curr_loc.dist(&d.curr_loc) / velocity,
                 ));
             }
         }

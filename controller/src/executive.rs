@@ -33,6 +33,10 @@ pub struct Executive<'a> {
 impl<'a> Executive<'a> {
     pub fn update(&mut self, backend: &mut dyn Backend) {
         let (current_time, problem) = backend.state();
+
+        std::fs::write("tiny_problem.json", serde_json::to_string(&problem).unwrap()).unwrap();
+        println!("SAVING PROBLEM");
+
         let mut current_tasks = problem.pois.iter().map(|p| p.task_ref).collect::<Vec<_>>();
         current_tasks.sort();
         while problem.vehicles.len() >= self.vehicle_current_task.len() {

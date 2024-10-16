@@ -1,9 +1,0 @@
-[package]
-name = "survsim_planner_colgen"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-highs = "1.6.1"
-highs-sys = "1.6.1"
-survsim_structs = { path = "../structs" }
