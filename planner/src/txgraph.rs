@@ -33,8 +33,8 @@ pub fn production_edge(nodes: &[Node], node: usize) -> Option<usize> {
             .outgoing
             .iter()
             .enumerate()
-            .filter_map(|(e_idx, (n2, _, _, _))| {
-                (nodes[*n2 as usize].state.loc == Location::Task(task_ref)).then(|| (e_idx))
+            .filter_map(|(e_idx, (n2, _, _, a))| {
+                (*a && nodes[*n2 as usize].state.loc == Location::Task(task_ref)).then(|| (e_idx))
             })
             .next(),
         _ => None,

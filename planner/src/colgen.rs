@@ -8,7 +8,7 @@ use tinyvec::TinyVec;
 
 use crate::{
     shortest_path::plan_vehicle,
-    txgraph::{self, production_edge, Constraint},
+    txgraph::{self, production_edge, Constraint, Node},
     VehicleSolution,
 };
 
@@ -17,12 +17,142 @@ pub fn test() {
     let _ = env_logger::try_init();
     let problem =
         serde_json::from_str(&std::fs::read_to_string("../tiny_problem.json").unwrap()).unwrap();
-    let x = solve(&problem, true);
+    let x = solve_old(&problem, true);
     hprof::profiler().print_timing();
     println!("{:?}", x);
 }
 
-pub fn solve(problem: &Problem, use_heuristic: bool) -> Plan {
+#[derive(Debug)]
+struct BattCycPlan {
+    cost: f32,
+    path: Vec<i32>,
+}
+
+struct HeuristicColgenSolver<'a> {
+    problem: &'a Problem,
+    vehicle_start_nodes: Vec<(u32, f32)>,
+    nodes: Vec<Node>,
+    time_steps_vehicles: Vec<(i32, u32)>,
+    battcycplans: Vec<BattCycPlan>,
+    label_buf: Vec<TinyVec<[crate::shortest_path::Label; 20]>>,
+}
+
+impl<'a> HeuristicColgenSolver<'a> {
+    pub fn new(problem: &'a Problem) -> Self {
+        let _p: hprof::ProfileGuard<'_> = hprof::enter("colgen new");
+        let (vehicle_start_nodes, mut nodes) = txgraph::build_graph(problem, 1.5 * 3600., 30);
+
+        let vehicle_start_nodes = vehicle_start_nodes
+            .into_iter()
+            .zip(problem.vehicles.iter())
+            .map(|(n, v)| (n, v.start_battery))
+            .collect::<Vec<_>>();
+
+        let mut time_steps = nodes
+            .iter()
+            .map(|x| x.state.time)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        time_steps.sort();
+        let time_steps_vehicles = time_steps
+            .into_iter()
+            .map(|x| (x, problem.vehicles.len() as u32))
+            .collect();
+
+        let label_buf: Vec<TinyVec<[crate::shortest_path::Label; 20]>> =
+            nodes.iter().map(|_| Default::default()).collect();
+
+        HeuristicColgenSolver {
+            problem,
+            battcycplans: Default::default(),
+            nodes,
+            time_steps_vehicles,
+            vehicle_start_nodes,
+            label_buf,
+        }
+    }
+
+    fn colgen_fix_one(&mut self) -> bool {
+        let mut rmp = LPInstance::new();
+        let mut shadow_prices: Vec<f64> = Default::default();
+
+        let veh_cstrs = self
+            .time_steps_vehicles
+            .iter()
+            .map(|(_t, n)| (*n > 0).then(|| rmp.add_empty_constr(0.0, *n as f64)))
+            .collect::<Vec<_>>();
+        shadow_prices.extend(veh_cstrs.iter().filter(|x| x.is_some()).map(|_| 0.0));
+        let mut time_cost: Vec<(i32, f32)> = self
+            .time_steps_vehicles
+            .iter()
+            .map(|(t, n)| (*t as i32, if *n > 0 { 0.0 } else { f32::INFINITY }))
+            .collect();
+
+        let production_capacity = (0..self.nodes.len())
+            .map(|i| production_edge(&self.nodes, i).map(|e| (e, rmp.add_empty_constr(0.0, 1.0))))
+            .collect::<Vec<Option<_>>>();
+        shadow_prices.extend(
+            production_capacity
+                .iter()
+                .filter(|x| x.is_some())
+                .map(|_| 0.0),
+        );
+
+        loop {
+            let val = rmp.optimize(&mut [], &mut shadow_prices).unwrap();
+
+            set_shadow_prices(
+                &mut self.nodes,
+                &mut time_cost,
+                &self.time_steps_vehicles,
+                &shadow_prices,
+            );
+            if let Some(solution) = plan_vehicle(
+                u32::MAX,
+                &self.nodes,
+                &self.vehicle_start_nodes,
+                0.0,
+                &mut self.label_buf,
+                &Default::default(),
+                &time_cost,
+            ) {
+                const COLGEN_COST_TOL: f32 = 5.0;
+                if solution.cost_including_shadow_price < -COLGEN_COST_TOL {}
+            }
+        }
+
+        todo!()
+    }
+
+    pub fn solve_heuristic(mut self) -> Plan {
+        while self.colgen_fix_one() {}
+        todo!("plan: {:?}", self.battcycplans);
+    }
+}
+
+// Update vehicle shadow prices
+fn set_shadow_prices(
+    nodes: &mut [Node],
+    time_cost: &mut [(i32, f32)],
+    time_steps_vehicles: &[(i32, u32)],
+    shadow_prices: &[f64],
+) {
+    let mut price_idx = 0;
+    for (_, x) in time_cost.iter_mut().filter(|(_, c)| !c.is_infinite()) {
+        *x = -(shadow_prices[price_idx] as f32);
+        price_idx += 1;
+    }
+
+    for node_idx in 0..nodes.len() {
+        if let Some(e) = production_edge(&nodes, node_idx) {
+            nodes[node_idx].outgoing[e].2 = -(shadow_prices[price_idx] as f32);
+            price_idx += 1;
+        }
+    }
+}
+
+pub fn solve_old(problem: &Problem, use_heuristic: bool) -> Plan {
     let _p = hprof::enter("colgen solve");
     let (vehicle_start_nodes, mut nodes) = txgraph::build_graph(problem, 1.5 * 3600., 30);
 
@@ -262,6 +392,14 @@ pub fn solve(problem: &Problem, use_heuristic: bool) -> Plan {
 
 struct LPInstance {
     ptr: *mut c_void,
+}
+
+impl Drop for LPInstance {
+    fn drop(&mut self) {
+        unsafe {
+            highs_sys::Highs_destroy(self.ptr);
+        }
+    }
 }
 
 impl LPInstance {
