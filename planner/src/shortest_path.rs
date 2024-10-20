@@ -73,7 +73,8 @@ pub fn plan_vehicle(
     recharge_at_base: f32,
     label_buf: &mut [TinyVec<[Label; 20]>],
     constraints: &BTreeSet<Constraint>,
-    time_cost: &[(i32, f32)],
+    time_steps: &[i32],
+    time_cost: &[f32],
 ) -> Option<VehicleSolution> {
     let _p = hprof::enter("plan_vehicle");
     let _p0 = hprof::enter("plan init");
@@ -134,7 +135,7 @@ pub fn plan_vehicle(
             }
         }
 
-        for (edge_idx, (tgt_node_idx, edge_data, edge_shadow_price, active)) in
+        for (edge_idx, (tgt_node_idx, edge_data, edge_shadow_price)) in
             node.outgoing.iter().enumerate()
         {
             let target_node = &nodes[*tgt_node_idx as usize];
@@ -149,23 +150,21 @@ pub fn plan_vehicle(
             }
 
             // Advance time cost pointer
-            while time_cost
-                .get(time_cost_idx)
-                .map(|(t, _)| *t < node.state.time)
-                .unwrap_or(false)
-            {
+            while time_steps[time_cost_idx] < node.state.time {
                 time_cost_idx += 1;
             }
 
-            let edge_on_ground =
-                (node.state.loc == Location::Base && target_node.state.loc == Location::Base) ||
-                (node.state.loc == Location::SinkNode && target_node.state.loc == Location::SinkNode);
+            let edge_on_ground = (node.state.loc == Location::Base
+                && target_node.state.loc == Location::Base)
+                || (node.state.loc == Location::SinkNode
+                    && target_node.state.loc == Location::SinkNode);
             let edge_time_cost = if edge_on_ground {
                 0.0
             } else {
-                time_cost[time_cost_idx..]
+                time_steps[time_cost_idx..]
                     .iter()
-                    .take_while(|(t, _)| *t < target_node.state.time)
+                    .zip(time_cost[time_cost_idx..].iter())
+                    .take_while(|(t, _)| **t < target_node.state.time)
                     .map(|(_, c)| *c)
                     .sum()
             };
@@ -177,7 +176,7 @@ pub fn plan_vehicle(
             for label_idx in 0..label_buf[src_node_idx].len() {
                 trace!(" - LABEL {:?}", label_buf[src_node_idx][label_idx]);
                 n_ops += 1;
-                if !*active {
+                if edge_shadow_price.is_infinite() {
                     continue;
                 }
 
@@ -250,8 +249,8 @@ pub fn plan_vehicle(
         let edge = nodes[label.prev_node as usize]
             .outgoing
             .iter()
-            .filter(|(_, _, _, x)| *x)
-            .find(|(n, _, _, _)| *n == node_idx)
+            .filter(|(_, _, c)| !c.is_infinite())
+            .find(|(n, _, _)| *n == node_idx)
             .unwrap();
 
         cost += edge.1.cost;

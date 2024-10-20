@@ -24,7 +24,7 @@ pub struct EdgeData {
 #[derive(Debug)]
 pub struct Node {
     pub state: State,
-    pub outgoing: TinyVec<[(u32, EdgeData, f32, bool); 10]>,
+    pub outgoing: TinyVec<[(u32, EdgeData, f32); 10]>,
 }
 
 pub fn production_edge(nodes: &[Node], node: usize) -> Option<usize> {
@@ -33,8 +33,8 @@ pub fn production_edge(nodes: &[Node], node: usize) -> Option<usize> {
             .outgoing
             .iter()
             .enumerate()
-            .filter_map(|(e_idx, (n2, _, _, a))| {
-                (*a && nodes[*n2 as usize].state.loc == Location::Task(task_ref)).then(|| (e_idx))
+            .filter_map(|(e_idx, (n2, _, _))| {
+                (nodes[*n2 as usize].state.loc == Location::Task(task_ref)).then(|| (e_idx))
             })
             .next(),
         _ => None,
@@ -311,7 +311,7 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
         for (s2, ed) in outg.into_iter() {
             nodes[i1 as usize]
                 .outgoing
-                .push((node_idxs[&s2], ed, 0.0, true));
+                .push((node_idxs[&s2], ed, 0.0));
         }
     }
 
@@ -336,7 +336,7 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
 
     // Should be topologically ordered
     for (i, n1) in nodes.iter().enumerate() {
-        for (j, _, _, _) in n1.outgoing.iter() {
+        for (j, _, _) in n1.outgoing.iter() {
             trace!(
                 " {} {:?} --  {}  {:?} ",
                 i,

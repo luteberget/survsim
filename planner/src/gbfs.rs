@@ -40,7 +40,7 @@ impl<'a> World<'a> {
                     problem.battery_capacity,
                     &mut label_buf,
                     &constraints,
-                    &[],
+                    &[],&[],
                 ).unwrap()
             })
             .collect::<Vec<_>>();
@@ -77,7 +77,7 @@ impl<'a> World<'a> {
                 self.problem.battery_capacity,
                 &mut self.label_buf,
                 &self.constraints,
-                &[],
+                &[],&[]
             ).unwrap();
         }
     }
@@ -106,7 +106,7 @@ impl<'a> World<'a> {
                     self.problem.battery_capacity,
                     &mut self.label_buf,
                     &self.constraints,
-                    &[],
+                    &[],&[]
                 ).unwrap()
                 .cost;
 
