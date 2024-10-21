@@ -68,12 +68,14 @@ impl eframe::App for MyApp {
                             );
                         }
 
-                        for d in report.drones.iter() {
+                        for (di,d) in report.drones.iter().enumerate() {
+                            const DRONE_DRAW_OFFSET :f64= 5.0;
                             plot_ui.text(
                                 egui_plot::Text::new(
-                                    [d.loc.x as f64, d.loc.y as f64].into(),
+                                    [d.loc.x as f64 + di as f64 *DRONE_DRAW_OFFSET, d.loc.y as f64+ di as f64 *DRONE_DRAW_OFFSET].into(),
                                     RichText::new(&format!(
-                                        "d ({}%)",
+                                        "d{} ({}%)",
+                                        di+1,
                                         (d.battery_level * 100.0).round() as i32
                                     ))
                                     .size(22.0),

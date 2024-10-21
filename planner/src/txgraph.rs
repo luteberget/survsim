@@ -236,7 +236,7 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
     }
 
     while let Some(state) = queue.pop() {
-        println!("txgraph frmo state {:?}", state);
+        // println!("txgraph frmo state {:?}", state);
         succ(
             problem,
             |e| *dist_map.get(e).unwrap(),

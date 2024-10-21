@@ -1,5 +1,5 @@
-use ordered_float::OrderedFloat;
 use core::f32;
+use ordered_float::OrderedFloat;
 use std::{
     collections::{HashMap, HashSet},
     ffi::{c_void, CStr},
@@ -22,7 +22,7 @@ use crate::{
 pub fn test() {
     let _ = env_logger::try_init();
     let problem =
-        serde_json::from_str(&std::fs::read_to_string("../tiny_problem.json").unwrap()).unwrap();
+        serde_json::from_str(&std::fs::read_to_string("../first_problem.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     x.print();
@@ -62,29 +62,7 @@ fn convert_batt_cyc_plan(
     // components.sort_by_key(|bcp| nodes[bcp.path[0] as usize].state.time);
     let start_and_end_times = components
         .iter()
-        .map(|plan| {
-            let start_path_idx = plan
-                .path
-                .iter()
-                .zip(plan.path.iter().skip(1))
-                .position(|(n1, n2)| {
-                    let (s1, s2) = (&nodes[*n1 as usize].state, &nodes[*n2 as usize].state);
-                    let on_ground = (s1.loc == Location::Base && s2.loc == Location::Base)
-                        || (s1.loc == Location::SinkNode && s2.loc == Location::SinkNode);
-                    !on_ground
-                })
-                .unwrap();
-
-            let end_path_idx = plan
-                .path
-                .iter()
-                .position(|node_idx| nodes[*node_idx as usize].state.loc == Location::SinkNode)
-                .unwrap();
-
-            let start_time = nodes[plan.path[start_path_idx] as usize].state.time;
-            let end_time = nodes[plan.path[end_path_idx] as usize].state.time;
-            ((start_path_idx, end_path_idx), (start_time, end_time))
-        })
+        .map(|plan| cyc_start_end(plan, nodes))
         .collect::<Vec<_>>();
 
     let mut start_time_order = (0..components.len()).collect::<Vec<_>>();
@@ -136,7 +114,14 @@ fn convert_batt_cyc_plan(
 
         let vplan = &mut v_plans[v_idx];
 
-        assert!(vplan.last_mut().unwrap().1.finish_cond.time.unwrap().is_infinite());
+        assert!(vplan
+            .last_mut()
+            .unwrap()
+            .1
+            .finish_cond
+            .time
+            .unwrap()
+            .is_infinite());
         vplan.last_mut().unwrap().1.finish_cond.time = Some(start_time as f32);
         const DEFAULT_EXT_TIME: f32 = 30.0;
 
@@ -222,10 +207,13 @@ fn convert_batt_cyc_plan(
             }
         }
 
-        vplan.push((end_time, PlanTask {
-            task: Task::Wait,
-            finish_cond: Cond::time(f32::INFINITY)
-        }));
+        vplan.push((
+            end_time,
+            PlanTask {
+                task: Task::Wait,
+                finish_cond: Cond::time(f32::INFINITY),
+            },
+        ));
     }
 
     let mut poi_watchers = problem
@@ -245,9 +233,11 @@ fn convert_batt_cyc_plan(
         }
     }
 
-    for (i,x) in v_plans.iter().enumerate() {
+    for (i, x) in v_plans.iter().enumerate() {
         print!("v {}", i);
-        for x in x { println!("  - {:?}", x);}
+        for x in x {
+            println!("  - {:?}", x);
+        }
     }
 
     // (Plan {
@@ -262,9 +252,9 @@ fn convert_batt_cyc_plan(
         for ((_t1, v1, s1), (t2, v2, s2)) in watchers.iter().zip(watchers.iter().skip(1)) {
             let t1_end = &mut v_plans[*v1][*s1].1.finish_cond.time;
             assert!(t1_end.is_some());
-            
+
             // println!("CHECKING {:?} {:?}  = {}", t1_end, Some(*t2 as f32), t1_end == &Some(*t2 as f32));
-            
+
             if t1_end == &Some(*t2 as f32) {
                 assert!(v1 != v2);
                 v_plans[*v1][*s1].1.finish_cond.time = None;
@@ -299,6 +289,30 @@ fn convert_batt_cyc_plan(
             .map(|x| x.into_iter().map(|(_, t)| t).collect())
             .collect(),
     }
+}
+
+fn cyc_start_end(plan: &BattCycPlan, nodes: &[Node]) -> ((usize, usize), (i32, i32)) {
+    let start_path_idx = plan
+        .path
+        .iter()
+        .zip(plan.path.iter().skip(1))
+        .position(|(n1, n2)| {
+            let (s1, s2) = (&nodes[*n1 as usize].state, &nodes[*n2 as usize].state);
+            let on_ground = (s1.loc == Location::Base && s2.loc == Location::Base)
+                || (s1.loc == Location::SinkNode && s2.loc == Location::SinkNode);
+            !on_ground
+        })
+        .unwrap();
+
+    let end_path_idx = plan
+        .path
+        .iter()
+        .position(|node_idx| nodes[*node_idx as usize].state.loc == Location::SinkNode)
+        .unwrap();
+
+    let start_time = nodes[plan.path[start_path_idx] as usize].state.time;
+    let end_time = nodes[plan.path[end_path_idx] as usize].state.time;
+    ((start_path_idx, end_path_idx), (start_time, end_time))
 }
 
 impl<'a> HeuristicColgenSolver<'a> {
@@ -346,6 +360,8 @@ impl<'a> HeuristicColgenSolver<'a> {
         let _p2 = hprof::enter("lp rebuild");
         let mut rmp = LPInstance::new();
         let mut shadow_prices: Vec<f64> = Default::default();
+
+        println!(" Time capacity {:?}", self.time_steps_vehicles);
 
         let veh_cstrs = self
             .time_steps_vehicles
@@ -405,8 +421,18 @@ impl<'a> HeuristicColgenSolver<'a> {
 
         drop(_p2);
 
+        let macro_obj = self.fixed_plans.iter().map(|c| c.cost).sum::<f32>();
         loop {
-            let _val = rmp.optimize(&mut [], &mut []).unwrap();
+            let micro_obj = rmp.optimize(&mut [], &mut []).unwrap() as f32;
+            println!(
+                " optimized macro {} ({:.2}) cols {} micro {} ({:.2}) obj={:.2}",
+                self.fixed_plans.len(),
+                macro_obj,
+                self.columns.len(),
+                n_iterations,
+                micro_obj,
+                macro_obj + micro_obj
+            );
 
             // Is it fixing time?
             const STILL_BEST_VALUE_TOLERANCE: f64 = 0.005;
@@ -431,7 +457,10 @@ impl<'a> HeuristicColgenSolver<'a> {
                     current_best.n_iter += 1;
 
                     if current_best.n_iter >= STILL_BEST_ITERS {
-                        // println!("ITERS still best {} after iters {}", STILL_BEST_ITERS, n_iterations);
+                        println!(
+                            "   ITERS still best {} after iters {} value={}",
+                            STILL_BEST_ITERS, n_iterations, current_best.value
+                        );
                         return Some(current_best.column);
                     }
                 } else {
@@ -444,7 +473,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 }
 
                 if n_iterations >= MAX_ITERS {
-                    // println!("ITERS maxed out {}", MAX_ITERS);
+                    println!("   ITERS maxed out {}  value={}", MAX_ITERS, best_value);
                     return Some(best_col);
                 }
             }
@@ -472,7 +501,13 @@ impl<'a> HeuristicColgenSolver<'a> {
                 const COLGEN_COST_TOL: f32 = 5.0;
                 if solution.cost_including_shadow_price >= -COLGEN_COST_TOL {
                     // No more columns to generate.
-                    return None;
+                    if current_best.column < self.columns.len()
+                        && solution_buf[current_best.column] > STILL_BEST_VALUE_TOLERANCE
+                    {
+                        return Some(current_best.column);
+                    } else {
+                        return None;
+                    }
                 }
 
                 create_column(
@@ -488,10 +523,15 @@ impl<'a> HeuristicColgenSolver<'a> {
                 let col_idx =
                     rmp.add_column(solution.cost as f64, &self.idxs_buf, &self.coeffs_buf);
                 assert!(col_idx as usize == self.columns.len());
-                self.columns.push(BattCycPlan {
+                let new_plan = BattCycPlan {
                     cost: solution.cost,
                     path: solution.path,
-                });
+                };
+                println!(
+                    " Added new column {}",
+                    cyc_plan_info(&new_plan, &self.nodes)
+                );
+                self.columns.push(new_plan);
             } else {
                 // Infeasible subproblem. That shouldn't happen (starting and
                 // staying at base is always feasible).
@@ -516,6 +556,8 @@ impl<'a> HeuristicColgenSolver<'a> {
     }
 
     fn make_fixed_plan(&mut self, plan: BattCycPlan) {
+        println!(" Fixing column {}", cyc_plan_info(&plan, &self.nodes));
+
         let _p = hprof::enter("make fixed plan");
         get_plan_edges_in_air(&self.nodes, &plan.path, &self.time_steps, |t_idx| {
             let capacity = &mut self.time_steps_vehicles[t_idx];
@@ -556,6 +598,29 @@ impl<'a> HeuristicColgenSolver<'a> {
     }
 }
 
+fn cyc_plan_info(plan: &BattCycPlan, nodes: &[Node]) -> String {
+    let ((_start_path_idx, _end_path_idx), (start_time, end_time)) = cyc_start_end(plan, nodes);
+    let mut prod_intervals: Vec<(TaskRef, i32, i32)> = Vec::new();
+    for (n1, n2) in plan.path.iter().zip(plan.path.iter().skip(1)) {
+        let (s1, s2) = (&nodes[*n1 as usize].state, &nodes[*n2 as usize].state);
+        if s1.loc.poi().is_some() && s1.loc == s2.loc {
+            if let Some((_t, _t1, t2)) = prod_intervals
+                .last_mut()
+                .filter(|(t, _, _)| *t == s1.loc.poi().unwrap())
+            {
+                *t2 = s2.time;
+            } else {
+                prod_intervals.push((s1.loc.poi().unwrap(), s1.time, s2.time));
+            }
+        }
+    }
+
+    format!(
+        "Plan(cost={:.2}, time=({},{}), prod={:?})",
+        plan.cost, start_time, end_time, prod_intervals
+    )
+}
+
 // Update vehicle shadow prices
 fn set_shadow_prices(
     nodes: &mut [Node],
@@ -564,17 +629,26 @@ fn set_shadow_prices(
     shadow_prices: &[f64],
 ) {
     let mut price_idx = 0;
+    let mut total_vehicle_cost = 0.0;
     for x in time_cost.iter_mut().filter(|c| !c.is_infinite()) {
         *x = -(shadow_prices[price_idx] as f32);
         price_idx += 1;
+        total_vehicle_cost += *x;
     }
 
+    let mut total_prod_cost = 0.0;
     for (node_idx, constraint) in production_capacity.iter().enumerate() {
         if let Some((edge_idx, _)) = constraint {
             nodes[node_idx].outgoing[*edge_idx].2 = -(shadow_prices[price_idx] as f32);
+            total_prod_cost += -(shadow_prices[price_idx] as f32);
             price_idx += 1;
         }
     }
+
+    println!(
+        "  total vcost {} pcost {}",
+        total_vehicle_cost, total_prod_cost
+    );
 }
 
 fn get_plan_edges_in_air(nodes: &[Node], path: &[u32], time: &[i32], mut f: impl FnMut(usize)) {
@@ -889,9 +963,17 @@ impl Drop for LPInstance {
 
 impl LPInstance {
     pub fn new() -> Self {
-        Self {
-            ptr: unsafe { highs_sys::Highs_create() },
-        }
+        let ptr = unsafe { highs_sys::Highs_create() };
+        unsafe {
+            highs_sys::Highs_setBoolOptionValue(
+                ptr,
+                CStr::from_bytes_with_nul("output_flag\0".as_bytes())
+                    .unwrap()
+                    .as_ptr(),
+                0,
+            )
+        };
+        Self { ptr }
     }
 
     #[allow(unused)]
@@ -963,7 +1045,7 @@ impl LPInstance {
         let num_rows = unsafe { highs_sys::Highs_getNumRow(self.ptr) } as usize;
 
         if !row_dual_out.is_empty() {
-            println!("Getting row dual");
+            // println!("Getting row dual");
             assert!(row_dual_out.len() == num_rows);
 
             let null = std::ptr::null_mut();
@@ -978,10 +1060,10 @@ impl LPInstance {
         let retval = unsafe { highs_sys::Highs_run(self.ptr) };
         drop(_p);
         let _p = hprof::enter("get_solution");
-        let status = highs::HighsStatus::try_from(retval);
+        let _status = highs::HighsStatus::try_from(retval);
         let model_status_retval = unsafe { highs_sys::Highs_getModelStatus(self.ptr) };
-        let model_status = highs::HighsModelStatus::try_from(model_status_retval);
-        println!("Solved {:?} {:?}", status, model_status);
+        let _model_status = highs::HighsModelStatus::try_from(model_status_retval);
+        // println!("Solved {:?} {:?}", status, model_status);
 
         // pub const kHighsSolutionStatusNone: HighsInt = 0;
         // pub const kHighsSolutionStatusInfeasible: HighsInt = 1;
@@ -1008,11 +1090,11 @@ impl LPInstance {
         let num_cols = unsafe { highs_sys::Highs_getNumCol(self.ptr) } as usize;
         let num_rows = unsafe { highs_sys::Highs_getNumRow(self.ptr) } as usize;
 
-        println!(
-            "primal feasible {} dual feasible {}",
-            primal_solution_status == 2,
-            dual_solution_status == 2
-        );
+        // println!(
+        //     "primal feasible {} dual feasible {}",
+        //     primal_solution_status == 2,
+        //     dual_solution_status == 2
+        // );
 
         if !var_value_out.is_empty() {
             assert!(var_value_out.len() == num_cols);
