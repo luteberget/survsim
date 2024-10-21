@@ -6,7 +6,7 @@ use std::{
 };
 use survsim_structs::{
     backend::Task,
-    plan::{Dependencies, Plan, PlanTask},
+    plan::{Cond, Plan, PlanTask},
     problem::Problem,
     report::Location,
     TaskRef,
@@ -55,8 +55,8 @@ struct HeuristicColgenSolver<'a> {
 fn convert_batt_cyc_plan(
     problem: &Problem,
     nodes: &[Node],
-    vehicle_start_nodes: &[(u32, f32)],
-    mut components: Vec<BattCycPlan>,
+    _vehicle_start_nodes: &[(u32, f32)],
+    components: Vec<BattCycPlan>,
 ) -> Plan {
     // Sort components by time
     // components.sort_by_key(|bcp| nodes[bcp.path[0] as usize].state.time);
@@ -90,11 +90,12 @@ fn convert_batt_cyc_plan(
     let mut start_time_order = (0..components.len()).collect::<Vec<_>>();
     start_time_order.sort_by_key(|i| start_and_end_times[*i].1 .0);
 
+    #[allow(clippy::unnecessary_filter_map)]
     let mut vehicles_ready_at_base: tinyvec::TinyVec<[(u32, i32); 10]> = problem
         .vehicles
         .iter()
         .enumerate()
-        .filter_map(|(i, v)| Some((i as u32, 0i32))) // TODO check if vehicle is at base at start
+        .filter_map(|(i, _v)| Some((i as u32, 0i32))) // TODO check if vehicle is at base at start
         .collect();
 
     let mut v_plans = vec![
@@ -102,7 +103,7 @@ fn convert_batt_cyc_plan(
             0,
             PlanTask {
                 task: Task::Wait,
-                dependencies: Dependencies::wait(f32::INFINITY),
+                finish_cond: Cond::time(f32::INFINITY),
             }
         )];
         problem.vehicles.len()
@@ -135,8 +136,8 @@ fn convert_batt_cyc_plan(
 
         let vplan = &mut v_plans[v_idx];
 
-        assert!(vplan.last_mut().unwrap().1.dependencies.time.unwrap().is_infinite());
-        vplan.last_mut().unwrap().1.dependencies.time = Some(start_time as f32);
+        assert!(vplan.last_mut().unwrap().1.finish_cond.time.unwrap().is_infinite());
+        vplan.last_mut().unwrap().1.finish_cond.time = Some(start_time as f32);
         const DEFAULT_EXT_TIME: f32 = 30.0;
 
         for (n1, n2) in plan.path[start_path_idx..end_path_idx]
@@ -157,14 +158,14 @@ fn convert_batt_cyc_plan(
                         s1.state.time,
                         PlanTask {
                             task: Task::Takeoff(t),
-                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
                         },
                     ));
                     vplan.push((
                         s1.state.time,
                         PlanTask {
                             task: Task::GotoPoi(t),
-                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
                         },
                     ));
                 }
@@ -173,7 +174,7 @@ fn convert_batt_cyc_plan(
                         s1.state.time,
                         PlanTask {
                             task: Task::GotoPoi(t),
-                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
                         },
                     ));
                 }
@@ -183,14 +184,14 @@ fn convert_batt_cyc_plan(
                         s1.state.time,
                         PlanTask {
                             task: Task::ApproachBase,
-                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
                         },
                     ));
                     vplan.push((
                         s1.state.time,
                         PlanTask {
                             task: Task::Land,
-                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
                         },
                     ));
                 }
@@ -198,13 +199,13 @@ fn convert_batt_cyc_plan(
                     if t1 == t2 {
                         let prev = &mut vplan.last_mut().unwrap().1;
                         if prev.task == Task::WatchPoi(t1) {
-                            prev.dependencies.time = Some(s2.state.time as f32);
+                            prev.finish_cond.time = Some(s2.state.time as f32);
                         } else {
                             vplan.push((
                                 s1.state.time,
                                 PlanTask {
                                     task: Task::WatchPoi(t1),
-                                    dependencies: Dependencies::wait(s2.state.time as f32),
+                                    finish_cond: Cond::time(s2.state.time as f32),
                                 },
                             ));
                         }
@@ -213,7 +214,7 @@ fn convert_batt_cyc_plan(
                             s1.state.time,
                             PlanTask {
                                 task: Task::GotoPoi(t2),
-                                dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                                finish_cond: Cond::external(DEFAULT_EXT_TIME),
                             },
                         ));
                     }
@@ -223,7 +224,7 @@ fn convert_batt_cyc_plan(
 
         vplan.push((end_time, PlanTask {
             task: Task::Wait,
-            dependencies: Dependencies::wait(f32::INFINITY)
+            finish_cond: Cond::time(f32::INFINITY)
         }));
     }
 
@@ -259,16 +260,16 @@ fn convert_batt_cyc_plan(
     for (_poi, mut watchers) in poi_watchers {
         watchers.sort_by_key(|(t, _, _)| *t);
         for ((_t1, v1, s1), (t2, v2, s2)) in watchers.iter().zip(watchers.iter().skip(1)) {
-            let t1_end = &mut v_plans[*v1][*s1].1.dependencies.time;
+            let t1_end = &mut v_plans[*v1][*s1].1.finish_cond.time;
             assert!(t1_end.is_some());
             
             // println!("CHECKING {:?} {:?}  = {}", t1_end, Some(*t2 as f32), t1_end == &Some(*t2 as f32));
             
             if t1_end == &Some(*t2 as f32) {
                 assert!(v1 != v2);
-                v_plans[*v1][*s1].1.dependencies.time = None;
-                assert!(v_plans[*v1][*s1].1.dependencies.event_started.is_none());
-                v_plans[*v1][*s1].1.dependencies.event_started = Some((*v2, *s2));
+                v_plans[*v1][*s1].1.finish_cond.time = None;
+                assert!(v_plans[*v1][*s1].1.finish_cond.task_start.is_none());
+                v_plans[*v1][*s1].1.finish_cond.task_start = Some((*v2, *s2));
             }
         }
     }
@@ -893,6 +894,7 @@ impl LPInstance {
         }
     }
 
+    #[allow(unused)]
     pub fn set_binary(&mut self, col_idx: i32) {
         unsafe { highs_sys::Highs_changeColBounds(self.ptr, col_idx, 0.0, 1.0) };
         unsafe {
@@ -947,7 +949,7 @@ impl LPInstance {
     pub fn get_solution(&mut self, var_value_out: &mut [f64]) {
         let num_cols = unsafe { highs_sys::Highs_getNumCol(self.ptr) } as usize;
 
-        if var_value_out.len() > 0 {
+        if !var_value_out.is_empty() {
             assert!(var_value_out.len() == num_cols);
 
             let null = std::ptr::null_mut();
@@ -960,7 +962,7 @@ impl LPInstance {
     pub fn get_dual_solution(&mut self, row_dual_out: &mut [f64]) {
         let num_rows = unsafe { highs_sys::Highs_getNumRow(self.ptr) } as usize;
 
-        if row_dual_out.len() > 0 {
+        if !row_dual_out.is_empty() {
             println!("Getting row dual");
             assert!(row_dual_out.len() == num_rows);
 
@@ -1012,7 +1014,7 @@ impl LPInstance {
             dual_solution_status == 2
         );
 
-        if var_value_out.len() > 0 {
+        if !var_value_out.is_empty() {
             assert!(var_value_out.len() == num_cols);
 
             let null = std::ptr::null_mut();
@@ -1021,7 +1023,7 @@ impl LPInstance {
             };
         }
 
-        if row_dual_out.len() > 0 {
+        if !row_dual_out.is_empty() {
             println!("Getting row dual");
             assert!(row_dual_out.len() == num_rows);
 

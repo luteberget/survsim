@@ -19,7 +19,7 @@ pub struct Label {
 
 fn label_dominates(a: &Label, b: &Label) -> bool {
     // Correct dominance:
-    return a.cost <= b.cost && a.remaining_battery >= b.remaining_battery;
+    a.cost <= b.cost && a.remaining_battery >= b.remaining_battery
 
     // Approximate dominance:
 
@@ -66,6 +66,7 @@ fn remove_dominated(front: &mut tinyvec::TinyVec<[Label; 20]>, new_elem: &Label)
     true
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn plan_vehicle(
     vehicle: u32,
     nodes: &[Node],

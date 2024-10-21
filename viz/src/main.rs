@@ -14,6 +14,7 @@ struct MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.set_zoom_factor(2.0);
         ctx.request_repaint_after(std::time::Duration::from_millis(25));
         while let Ok(Some(msg)) = self.mqtt_rx.try_recv() {
             if msg.topic() == "/survsim/state" {
@@ -176,7 +177,8 @@ impl eframe::App for MyApp {
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        // viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        
         ..Default::default()
     };
 
@@ -193,7 +195,7 @@ fn main() -> Result<(), eframe::Error> {
     let mqtt_rx = mqtt_cli.start_consuming();
 
     eframe::run_native(
-        "ATAM-MASIM: Current plan",
+        "ATAM-survsim",
         options,
         Box::new(|cc| {
             let style = egui::Style {
@@ -227,8 +229,8 @@ fn get_plan_timing(plan: &Plan) -> Vec<Vec<(f32, f32)>> {
             .find(|(v, (t, _))| {
                 // The task is ready if it doesn't depend on another task.
                 plan.vehicle_tasks[*v][*t]
-                    .dependencies
-                    .event_started
+                    .finish_cond
+                    .task_start
                     // Skip if the task has already been processed
                     .filter(|(v2, t2)| curr_idx[*v2].0 < *t2)
                     .is_none()
@@ -236,14 +238,14 @@ fn get_plan_timing(plan: &Plan) -> Vec<Vec<(f32, f32)>> {
 
         // Find a vehicle that is ready to proceed.
         if let Some((v, (t, start))) = ready_task {
-            let deps = plan.vehicle_tasks[v][*t].dependencies;
+            let deps = plan.vehicle_tasks[v][*t].finish_cond;
 
             let end_time = deps
                 .time
                 .iter()
                 .copied()
                 .chain(deps.external.iter().map(|t| *start + *t))
-                .chain(deps.event_started.iter().map(|(v2, t2)| {
+                .chain(deps.task_start.iter().map(|(v2, t2)| {
                     if curr_idx[*v2].0 == *t2 {
                         curr_idx[*v2].1
                     } else {
@@ -312,7 +314,7 @@ fn draw_plan(ui: &mut egui::Ui, plan: &Plan, id_source: impl std::hash::Hash) {
                     );
 
                     // Does it need an arrow
-                    if let Some((v2, s2)) = plan_task.dependencies.event_started {
+                    if let Some((v2, s2)) = plan_task.finish_cond.task_start {
                         let (a, b) = timing[v2][s2];
                         let a = a as f64; let b= b as f64;
 

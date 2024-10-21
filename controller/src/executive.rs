@@ -35,8 +35,8 @@ impl<'a> Executive<'a> {
     pub fn update(&mut self, backend: &mut dyn Backend) {
         let (current_time, problem) = backend.state();
 
-        // std::fs::write("tiny_problem.json", serde_json::to_string(&problem).unwrap()).unwrap();
-        // println!("SAVING PROBLEM");
+        // std::fs::write("first_problem.json", serde_json::to_string(&problem).unwrap()).unwrap();
+        // panic!("SAVING PROBLEM");
 
         let mut current_tasks = problem.pois.iter().map(|p| p.task_ref).collect::<Vec<_>>();
         current_tasks.sort();
@@ -51,6 +51,7 @@ impl<'a> Executive<'a> {
             .unwrap_or(0.0);
 
         #[allow(clippy::nonminimal_bool)]
+        #[allow(unused_variables)]
         let replan = if let Some(state) = self.state.as_ref() {
             false 
             // ||current_time - state.plan_time >= 20.0e9 
@@ -95,7 +96,7 @@ impl<'a> Executive<'a> {
                     );
                 } else {
                     println!("External task finished {:?}", backend_task);
-                    vehicle_plan[0].dependencies.external = None;
+                    vehicle_plan[0].finish_cond.external = None;
                 }
             }
 

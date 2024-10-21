@@ -33,9 +33,10 @@ pub fn production_edge(nodes: &[Node], node: usize) -> Option<usize> {
             .outgoing
             .iter()
             .enumerate()
-            .filter_map(|(e_idx, (n2, _, _))| {
-                (nodes[*n2 as usize].state.loc == Location::Task(task_ref)).then(|| (e_idx))
+            .filter(|&(_e_idx, (n2, _, _))| {
+                nodes[*n2 as usize].state.loc == Location::Task(task_ref)
             })
+            .map(|(e_idx, _)| (e_idx))
             .next(),
         _ => None,
     }
@@ -70,8 +71,7 @@ fn succ(
                     batt: 0.0,
                 },
             );
-
-        },
+        }
         Location::Base => {
             // Stay on ground
             f(
@@ -86,7 +86,7 @@ fn succ(
             );
 
             // Go to pois
-            for (_poi_idx, poi) in problem.pois.iter().enumerate() {
+            for poi in problem.pois.iter() {
                 let dist_edge = &(state.loc, Location::Task(poi.task_ref));
                 let dist = dist_map(dist_edge);
                 f(
@@ -106,7 +106,7 @@ fn succ(
         }
 
         Location::DroneInitial(_) => {
-            for (_poi_idx, poi) in problem.pois.iter().enumerate() {
+            for poi in problem.pois.iter() {
                 let dist_edge = &(state.loc, Location::Task(poi.task_ref));
                 let dist = dist_map(dist_edge);
                 f(
@@ -144,7 +144,7 @@ fn succ(
 
         Location::Task(curr_task) => {
             // Go to another poi
-            for (_poi_idx, poi) in problem.pois.iter().enumerate() {
+            for poi in problem.pois.iter() {
                 if poi.task_ref == curr_task {
                     // Produce reward
                     f(
@@ -309,9 +309,7 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
     for (s1, outg) in state_outgoing.into_iter() {
         let i1 = node_idxs[&s1];
         for (s2, ed) in outg.into_iter() {
-            nodes[i1 as usize]
-                .outgoing
-                .push((node_idxs[&s2], ed, 0.0));
+            nodes[i1 as usize].outgoing.push((node_idxs[&s2], ed, 0.0));
         }
     }
 

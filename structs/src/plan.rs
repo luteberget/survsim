@@ -27,16 +27,16 @@ impl Plan {
 
         for v in self.vehicle_tasks.iter_mut() {
             assert!(!v.is_empty());
-            if let Some(ext) = v[0].dependencies.external.as_mut() {
+            if let Some(ext) = v[0].finish_cond.external.as_mut() {
                 *ext -= dt;
             }
 
             for task in v.iter_mut() {
-                if let Some(time) = task.dependencies.time.as_mut() {
+                if let Some(time) = task.finish_cond.time.as_mut() {
                     *time -= dt;
 
                     if *time <= 0.0 {
-                        task.dependencies.time = None;
+                        task.finish_cond.time = None;
                     }
                 }
             }
@@ -47,18 +47,18 @@ impl Plan {
         while let Some(v_ready) = self
             .vehicle_tasks
             .iter()
-            .position(|v| v[0].dependencies.is_ready())
+            .position(|v| v[0].finish_cond.is_ready())
         {
             for (v_idx, v) in self.vehicle_tasks.iter_mut().enumerate() {
                 for task in v.iter_mut() {
-                    if let Some((dep_v, dep_i)) = task.dependencies.event_started {
+                    if let Some((dep_v, dep_i)) = task.finish_cond.task_start {
                         assert!(dep_v != v_idx);
                         if dep_v == v_ready {
                             assert!(dep_i >= 1);
                             if dep_i == 1 {
-                                task.dependencies.event_started = None;
+                                task.finish_cond.task_start = None;
                             } else {
-                                task.dependencies.event_started = Some((dep_v, dep_i - 1));
+                                task.finish_cond.task_start = Some((dep_v, dep_i - 1));
                             }
                         }
                     }
@@ -74,24 +74,24 @@ impl Plan {
 #[derive(Serialize, Deserialize)]
 pub struct PlanTask {
     pub task: Task,
-    pub dependencies: Dependencies,
+    pub finish_cond: Cond,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 #[derive(Serialize, Deserialize)]
-pub struct Dependencies {
+pub struct Cond {
     pub time: Option<f32>,
     pub external: Option<f32>,
-    pub event_started: Option<(usize, usize)>,
+    pub task_start: Option<(usize, usize)>,
 }
 
-impl Dependencies {
+impl Cond {
     pub fn empty() -> Self {
         Self::default()
     }
     pub fn event((v_idx, t_idx): (usize, usize)) -> Self {
         Self {
-            event_started: Some((v_idx, t_idx)),
+            task_start: Some((v_idx, t_idx)),
             ..Default::default()
         }
     }
@@ -101,7 +101,7 @@ impl Dependencies {
             ..Default::default()
         }
     }
-    pub fn wait(t: f32) -> Self {
+    pub fn time(t: f32) -> Self {
         Self {
             time: Some(t),
             ..Default::default()
@@ -109,8 +109,8 @@ impl Dependencies {
     }
 }
 
-impl Dependencies {
+impl Cond {
     pub fn is_ready(&self) -> bool {
-        self.time.is_none() && self.external.is_none() && self.event_started.is_none()
+        self.time.is_none() && self.external.is_none() && self.task_start.is_none()
     }
 }

@@ -39,6 +39,7 @@ impl SurvsimBackend {
     }
 
     pub fn main_loop(mut self, mut callback: impl FnMut(&mut dyn Backend)) {
+        println!("connecting");
         let mqtt_opts = paho_mqtt::CreateOptionsBuilder::new()
             .server_uri("mqtt://localhost:1883")
             .finalize();
@@ -50,9 +51,14 @@ impl SurvsimBackend {
         mqtt_cli.subscribe("/survsim/state", 1).unwrap();
         let mqtt_rx = mqtt_cli.start_consuming();
 
+        let mut first = true;
         loop {
             let new_report = match mqtt_rx.recv() {
                 Ok(Some(msg)) => {
+                    if first {
+                        println!("Recevied first report");
+                        first = false;
+                    }
                     serde_json::from_slice::<Report>(msg.payload_str().as_bytes()).unwrap()
                 }
                 Ok(None) => {
