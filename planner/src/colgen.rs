@@ -1,6 +1,7 @@
 use ordered_float::OrderedFloat;
+use core::f32;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::{c_void, CStr},
 };
 use survsim_structs::{
@@ -8,6 +9,7 @@ use survsim_structs::{
     plan::{Dependencies, Plan, PlanTask},
     problem::Problem,
     report::Location,
+    TaskRef,
 };
 use tinyvec::TinyVec;
 
@@ -23,7 +25,7 @@ pub fn test() {
         serde_json::from_str(&std::fs::read_to_string("../tiny_problem.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
-    println!("{:?}", x);
+    x.print();
 }
 
 pub fn solve(problem: &Problem) -> Plan {
@@ -44,7 +46,7 @@ struct HeuristicColgenSolver<'a> {
     time_steps: Vec<i32>,
     time_steps_vehicles: Vec<u32>,
     columns: Vec<BattCycPlan>,
-    battcycplans: Vec<BattCycPlan>,
+    fixed_plans: Vec<BattCycPlan>,
     label_buf: Vec<TinyVec<[crate::shortest_path::Label; 20]>>,
     idxs_buf: Vec<i32>,
     coeffs_buf: Vec<f64>,
@@ -57,7 +59,36 @@ fn convert_batt_cyc_plan(
     mut components: Vec<BattCycPlan>,
 ) -> Plan {
     // Sort components by time
-    components.sort_by_key(|bcp| nodes[bcp.path[0] as usize].state.time);
+    // components.sort_by_key(|bcp| nodes[bcp.path[0] as usize].state.time);
+    let start_and_end_times = components
+        .iter()
+        .map(|plan| {
+            let start_path_idx = plan
+                .path
+                .iter()
+                .zip(plan.path.iter().skip(1))
+                .position(|(n1, n2)| {
+                    let (s1, s2) = (&nodes[*n1 as usize].state, &nodes[*n2 as usize].state);
+                    let on_ground = (s1.loc == Location::Base && s2.loc == Location::Base)
+                        || (s1.loc == Location::SinkNode && s2.loc == Location::SinkNode);
+                    !on_ground
+                })
+                .unwrap();
+
+            let end_path_idx = plan
+                .path
+                .iter()
+                .position(|node_idx| nodes[*node_idx as usize].state.loc == Location::SinkNode)
+                .unwrap();
+
+            let start_time = nodes[plan.path[start_path_idx] as usize].state.time;
+            let end_time = nodes[plan.path[end_path_idx] as usize].state.time;
+            ((start_path_idx, end_path_idx), (start_time, end_time))
+        })
+        .collect::<Vec<_>>();
+
+    let mut start_time_order = (0..components.len()).collect::<Vec<_>>();
+    start_time_order.sort_by_key(|i| start_and_end_times[*i].1 .0);
 
     let mut vehicles_ready_at_base: tinyvec::TinyVec<[(u32, i32); 10]> = problem
         .vehicles
@@ -67,39 +98,27 @@ fn convert_batt_cyc_plan(
         .collect();
 
     let mut v_plans = vec![
-        vec![PlanTask {
-            task: Task::Wait,
-            dependencies: Default::default()
-        }];
+        vec![(
+            0,
+            PlanTask {
+                task: Task::Wait,
+                dependencies: Dependencies::wait(f32::INFINITY),
+            }
+        )];
         problem.vehicles.len()
     ];
 
-    for plan in components {
+    for plan_idx in start_time_order {
+        let plan = &components[plan_idx];
+        let ((start_path_idx, end_path_idx), (start_time, end_time)) =
+            start_and_end_times[plan_idx];
+        // println!("treating plan {:?}", plan);
         let v_init = match nodes[plan.path[0] as usize].state.loc {
             Location::DroneInitial(d) => Some(d),
             _ => None,
         };
-        let start_path_idx = plan
-            .path
-            .iter()
-            .zip(plan.path.iter().skip(1))
-            .position(|(n1, n2)| {
-                let (s1, s2) = (&nodes[*n1 as usize].state, &nodes[*n2 as usize].state);
-                let on_ground = (s1.loc == Location::Base && s2.loc == Location::Base)
-                    || (s1.loc == Location::SinkNode && s2.loc == Location::SinkNode);
-                !on_ground
-            })
-            .unwrap();
 
-        let end_path_idx = plan
-            .path
-            .iter()
-            .position(|node_idx| nodes[*node_idx as usize].state.loc == Location::SinkNode)
-            .unwrap();
-
-        let start_time = nodes[plan.path[start_path_idx] as usize].state.time;
-        let end_time = nodes[plan.path[end_path_idx] as usize].state.time;
-
+        // println!("find ready {:?}", vehicles_ready_at_base);
         let v_idx = if let Some(v_idx) = v_init {
             vehicles_ready_at_base.push((v_idx as u32, end_time));
             v_idx
@@ -112,7 +131,13 @@ fn convert_batt_cyc_plan(
             vehicles_ready_at_base[ready_idx].0 as usize
         };
 
+        // println!("new ready {:?}", vehicles_ready_at_base);
+
         let vplan = &mut v_plans[v_idx];
+
+        assert!(vplan.last_mut().unwrap().1.dependencies.time.unwrap().is_infinite());
+        vplan.last_mut().unwrap().1.dependencies.time = Some(start_time as f32);
+        const DEFAULT_EXT_TIME: f32 = 30.0;
 
         for (n1, n2) in plan.path[start_path_idx..end_path_idx]
             .iter()
@@ -127,19 +152,151 @@ fn convert_batt_cyc_plan(
                 | (Location::Base, Location::SinkNode) => {
                     panic!()
                 }
-                (Location::Base, Location::Task(task)) => {
-                    // vplan.append(PlanTask { task: Task::GotoPoi(task), dependencies: Dependencies::wait(t)});
+                (Location::Base, Location::Task(t)) => {
+                    vplan.push((
+                        s1.state.time,
+                        PlanTask {
+                            task: Task::Takeoff(t),
+                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                        },
+                    ));
+                    vplan.push((
+                        s1.state.time,
+                        PlanTask {
+                            task: Task::GotoPoi(t),
+                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                        },
+                    ));
                 }
-                (Location::DroneInitial(_), Location::Task(task_ref)) => todo!(),
-                (Location::DroneInitial(_), Location::SinkNode) => todo!(),
-                (Location::Task(task_ref), Location::Task(task2)) => todo!(),
-                (Location::Task(task_ref), Location::SinkNode) => todo!(),
+                (Location::DroneInitial(_), Location::Task(t)) => {
+                    vplan.push((
+                        s1.state.time,
+                        PlanTask {
+                            task: Task::GotoPoi(t),
+                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                        },
+                    ));
+                }
+                (Location::DroneInitial(_), Location::SinkNode)
+                | (Location::Task(_), Location::SinkNode) => {
+                    vplan.push((
+                        s1.state.time,
+                        PlanTask {
+                            task: Task::ApproachBase,
+                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                        },
+                    ));
+                    vplan.push((
+                        s1.state.time,
+                        PlanTask {
+                            task: Task::Land,
+                            dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                        },
+                    ));
+                }
+                (Location::Task(t1), Location::Task(t2)) => {
+                    if t1 == t2 {
+                        let prev = &mut vplan.last_mut().unwrap().1;
+                        if prev.task == Task::WatchPoi(t1) {
+                            prev.dependencies.time = Some(s2.state.time as f32);
+                        } else {
+                            vplan.push((
+                                s1.state.time,
+                                PlanTask {
+                                    task: Task::WatchPoi(t1),
+                                    dependencies: Dependencies::wait(s2.state.time as f32),
+                                },
+                            ));
+                        }
+                    } else {
+                        vplan.push((
+                            s1.state.time,
+                            PlanTask {
+                                task: Task::GotoPoi(t2),
+                                dependencies: Dependencies::external(DEFAULT_EXT_TIME),
+                            },
+                        ));
+                    }
+                }
+            }
+        }
+
+        vplan.push((end_time, PlanTask {
+            task: Task::Wait,
+            dependencies: Dependencies::wait(f32::INFINITY)
+        }));
+    }
+
+    let mut poi_watchers = problem
+        .pois
+        .iter()
+        .map(|x| (x.task_ref, Vec::new()))
+        .collect::<HashMap<TaskRef, Vec<(i32, usize, usize)>>>();
+
+    for (v_idx, vplan) in v_plans.iter().enumerate() {
+        for (task_idx, (time, task)) in vplan.iter().enumerate() {
+            if let Task::WatchPoi(t) = &task.task {
+                poi_watchers
+                    .get_mut(t)
+                    .unwrap()
+                    .push((*time, v_idx, task_idx));
             }
         }
     }
 
+    for (i,x) in v_plans.iter().enumerate() {
+        print!("v {}", i);
+        for x in x { println!("  - {:?}", x);}
+    }
+
+    // (Plan {
+    //     vehicle_tasks: v_plans
+    //         .iter()
+    //         .map(|x| x.iter().map(|(_, t)| *t).collect())
+    //         .collect(),
+    // }).print();
+
+    for (_poi, mut watchers) in poi_watchers {
+        watchers.sort_by_key(|(t, _, _)| *t);
+        for ((_t1, v1, s1), (t2, v2, s2)) in watchers.iter().zip(watchers.iter().skip(1)) {
+            let t1_end = &mut v_plans[*v1][*s1].1.dependencies.time;
+            assert!(t1_end.is_some());
+            
+            // println!("CHECKING {:?} {:?}  = {}", t1_end, Some(*t2 as f32), t1_end == &Some(*t2 as f32));
+            
+            if t1_end == &Some(*t2 as f32) {
+                assert!(v1 != v2);
+                v_plans[*v1][*s1].1.dependencies.time = None;
+                assert!(v_plans[*v1][*s1].1.dependencies.event_started.is_none());
+                v_plans[*v1][*s1].1.dependencies.event_started = Some((*v2, *s2));
+            }
+        }
+    }
+
+    // poi_watchers: List[List[Tuple[float, int, int]]] = [[] for _ in problem.pois]
+    // for v_idx, vplan in enumerate(vehicle_plans):
+    //     for task_idx, (time, task) in enumerate(vplan):
+    //         if task.task_type == "watch_poi":
+    //             poi_watchers[task.poi_idx].append((time, v_idx, task_idx))
+
+    // for poi_watcher in poi_watchers:
+    //     # Sort by time
+    //     poi_watcher.sort(key=lambda x: x[0])
+    //     for (_t1, v1, s1), (t2, v2, s2) in zip(poi_watcher, poi_watcher[1:]):
+    //         t1_end = vehicle_plans[v1][s1][1].finish_cond.time
+    //         assert t1_end is not None
+    //         if t1_end == t2:
+    //             # Don't stop when reaching the time limit
+    //             vehicle_plans[v1][s1][1].finish_cond.time = None
+    //             # ... but instead, wait for this vehicle to "take over"
+    //             assert vehicle_plans[v1][s1][1].finish_cond.event_started is None
+    //             vehicle_plans[v1][s1][1].finish_cond.event_started = (v2, s2)
+
     Plan {
-        vehicle_tasks: v_plans,
+        vehicle_tasks: v_plans
+            .into_iter()
+            .map(|x| x.into_iter().map(|(_, t)| t).collect())
+            .collect(),
     }
 }
 
@@ -171,7 +328,7 @@ impl<'a> HeuristicColgenSolver<'a> {
 
         HeuristicColgenSolver {
             problem,
-            battcycplans: Default::default(),
+            fixed_plans: Default::default(),
             columns: Default::default(),
             idxs_buf: Default::default(),
             coeffs_buf: Default::default(),
@@ -348,10 +505,13 @@ impl<'a> HeuristicColgenSolver<'a> {
             let plan = self.columns.swap_remove(col_idx);
             self.make_fixed_plan(plan);
         }
-        Plan {
-            vehicle_tasks: vec![],
-        }
-        // todo!("plan: {:?}", self.battcycplans);
+
+        convert_batt_cyc_plan(
+            self.problem,
+            &self.nodes,
+            &self.vehicle_start_nodes,
+            self.fixed_plans,
+        )
     }
 
     fn make_fixed_plan(&mut self, plan: BattCycPlan) {
@@ -390,6 +550,8 @@ impl<'a> HeuristicColgenSolver<'a> {
             });
             ok
         });
+
+        self.fixed_plans.push(plan);
     }
 }
 

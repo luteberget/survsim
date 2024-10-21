@@ -28,14 +28,15 @@ pub struct Executive<'a> {
     state: Option<ExecutionState>,
     backend_tasks: HashMap<BackendTaskRef, BackendTask>,
     vehicle_current_task: Vec<Option<BackendTaskRef>>,
+    mqtt_cli: paho_mqtt::Client,
 }
 
 impl<'a> Executive<'a> {
     pub fn update(&mut self, backend: &mut dyn Backend) {
         let (current_time, problem) = backend.state();
 
-        std::fs::write("tiny_problem.json", serde_json::to_string(&problem).unwrap()).unwrap();
-        println!("SAVING PROBLEM");
+        // std::fs::write("tiny_problem.json", serde_json::to_string(&problem).unwrap()).unwrap();
+        // println!("SAVING PROBLEM");
 
         let mut current_tasks = problem.pois.iter().map(|p| p.task_ref).collect::<Vec<_>>();
         current_tasks.sort();
@@ -49,8 +50,11 @@ impl<'a> Executive<'a> {
             .map(|s| current_time - s.time)
             .unwrap_or(0.0);
 
-        let replan = if let Some(_state) = self.state.as_ref() {
-            false //current_time - state.plan_time >= 20.0e9 || state.planned_tasks != current_tasks
+        #[allow(clippy::nonminimal_bool)]
+        let replan = if let Some(state) = self.state.as_ref() {
+            false 
+            // ||current_time - state.plan_time >= 20.0e9 
+            // || state.planned_tasks != current_tasks
         } else {
             true
         };
@@ -120,7 +124,7 @@ impl<'a> Executive<'a> {
                 };
 
                 if start_new_task {
-                    println!("launching v={:?} {:?}",v_idx, plan_task.task);
+                    println!("launching v={:?} {:?}", v_idx, plan_task.task);
                     let new_task_ref = backend.start_task(DroneTask {
                         vehicle: v_idx,
                         task: plan_task.task,
@@ -141,6 +145,14 @@ impl<'a> Executive<'a> {
             break 'dispatch;
         }
 
+        self.mqtt_cli
+            .publish(paho_mqtt::Message::new(
+                "/survsim/plan",
+                serde_json::to_string(&plan).unwrap(),
+                1,
+            ))
+            .unwrap();
+
         self.state = Some(ExecutionState {
             time: current_time,
             plan_time,
@@ -151,11 +163,21 @@ impl<'a> Executive<'a> {
     }
 
     pub fn new(planner: &'a mut Planner) -> Self {
+        let mqtt_opts = paho_mqtt::CreateOptionsBuilder::new()
+            .server_uri("mqtt://localhost:1883")
+            .finalize();
+        let mqtt_cli = paho_mqtt::Client::new(mqtt_opts).unwrap();
+        let conn_opts = paho_mqtt::ConnectOptionsBuilder::new()
+            .keep_alive_interval(std::time::Duration::from_secs(20))
+            .finalize();
+        mqtt_cli.connect(conn_opts).unwrap();
+
         Self {
             planner,
             backend_tasks: Default::default(),
             vehicle_current_task: Default::default(),
             state: None,
+            mqtt_cli,
         }
     }
 }

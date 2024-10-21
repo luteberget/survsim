@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{problem::Problem, TaskRef};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -10,6 +12,7 @@ pub struct DroneTask {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub enum Task {
     Wait,
     Takeoff(TaskRef),

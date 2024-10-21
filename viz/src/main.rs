@@ -1,8 +1,13 @@
-use eframe::egui::{self, Align2, Color32, RichText};
-use survsim_structs::{report::Report, Goal, TaskRef};
+use eframe::{
+    egui::{self, Align2, Color32, RichText},
+    emath::OrderedFloat,
+};
+use egui_plot::Polygon;
+use survsim_structs::{backend::Task, plan::Plan, report::Report, Goal, TaskRef};
 
 struct MyApp {
     report: Option<Report>,
+    plan: Option<Plan>,
     _mqtt_cli: paho_mqtt::Client,
     mqtt_rx: paho_mqtt::Receiver<Option<paho_mqtt::Message>>,
 }
@@ -11,13 +16,25 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint_after(std::time::Duration::from_millis(25));
         while let Ok(Some(msg)) = self.mqtt_rx.try_recv() {
-            let s = msg.payload_str();
-            let report: Report = serde_json::from_slice(s.as_bytes()).unwrap();
-            self.report = Some(report);
+            if msg.topic() == "/survsim/state" {
+                let s = msg.payload_str();
+                let report: Report = serde_json::from_slice(s.as_bytes()).unwrap();
+                self.report = Some(report);
+            } else if msg.topic() == "/survsim/plan" {
+                let s = msg.payload_str();
+                let plan: Plan = serde_json::from_slice(s.as_bytes()).unwrap();
+                self.plan = Some(plan);
+            } else {
+                panic!("unexpected message topic {}", msg.topic());
+            }
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("My egui Application");
+            egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
+                if let Some(plan) = &self.plan {
+                    draw_plan(ui, plan, "plan");
+                }
+            });
 
             egui_plot::Plot::new("map")
                 .allow_drag(true)
@@ -29,7 +46,7 @@ impl eframe::App for MyApp {
                             plot_ui.text(
                                 egui_plot::Text::new(
                                     [ft.loc.x as f64, ft.loc.y as f64].into(),
-                                    RichText::new("x").size(18.0),
+                                    RichText::new("x").size(22.0),
                                 )
                                 .anchor(Align2::CENTER_BOTTOM),
                             );
@@ -39,7 +56,7 @@ impl eframe::App for MyApp {
                             plot_ui.text(
                                 egui_plot::Text::new(
                                     [c.loc.x as f64, c.loc.y as f64].into(),
-                                    RichText::new("c").size(18.0),
+                                    RichText::new("c").size(22.0),
                                 )
                                 .color(if c.in_sight {
                                     Color32::RED
@@ -58,7 +75,7 @@ impl eframe::App for MyApp {
                                         "d ({}%)",
                                         (d.battery_level * 100.0).round() as i32
                                     ))
-                                    .size(18.0),
+                                    .size(22.0),
                                 )
                                 .color(Color32::BLUE)
                                 .anchor(Align2::CENTER_TOP),
@@ -172,6 +189,7 @@ fn main() -> Result<(), eframe::Error> {
         .finalize();
     mqtt_cli.connect(conn_opts).unwrap();
     mqtt_cli.subscribe("/survsim/state", 1).unwrap();
+    mqtt_cli.subscribe("/survsim/plan", 1).unwrap();
     let mqtt_rx = mqtt_cli.start_consuming();
 
     eframe::run_native(
@@ -185,9 +203,159 @@ fn main() -> Result<(), eframe::Error> {
             cc.egui_ctx.set_style(style);
             Ok(Box::new(MyApp {
                 report: None,
+                plan: None,
                 _mqtt_cli: mqtt_cli,
                 mqtt_rx,
             }))
         }),
     )
+}
+
+fn get_plan_timing(plan: &Plan) -> Vec<Vec<(f32, f32)>> {
+    let mut vtimes: Vec<Vec<(f32, f32)>> = plan.vehicle_tasks.iter().map(|_| Vec::new()).collect();
+    let mut curr_idx = plan
+        .vehicle_tasks
+        .iter()
+        .map(|_| (0, 0.0f32))
+        .collect::<Vec<(usize, f32)>>();
+
+    loop {
+        let ready_task = curr_idx
+            .iter()
+            .enumerate()
+            .filter(|(v, (t, _))| *t + 1 < plan.vehicle_tasks[*v].len())
+            .find(|(v, (t, _))| {
+                // The task is ready if it doesn't depend on another task.
+                plan.vehicle_tasks[*v][*t]
+                    .dependencies
+                    .event_started
+                    // Skip if the task has already been processed
+                    .filter(|(v2, t2)| curr_idx[*v2].0 < *t2)
+                    .is_none()
+            });
+
+        // Find a vehicle that is ready to proceed.
+        if let Some((v, (t, start))) = ready_task {
+            let deps = plan.vehicle_tasks[v][*t].dependencies;
+
+            let end_time = deps
+                .time
+                .iter()
+                .copied()
+                .chain(deps.external.iter().map(|t| *start + *t))
+                .chain(deps.event_started.iter().map(|(v2, t2)| {
+                    if curr_idx[*v2].0 == *t2 {
+                        curr_idx[*v2].1
+                    } else {
+                        vtimes[*v2][*t2].0
+                    }
+                }))
+                .map(OrderedFloat)
+                .max()
+                .map(|x| x.0)
+                .unwrap_or(0.0)
+                .max(10.0);
+
+            vtimes[v].push((*start, end_time));
+            curr_idx[v] = (*t + 1, end_time);
+        } else {
+            // Did we reach the last task on all vehciels?
+            let all_done = curr_idx
+                .iter()
+                .enumerate()
+                .all(|(v, (t, _))| *t + 1 >= plan.vehicle_tasks[v].len());
+            assert!(all_done);
+            break;
+        }
+    }
+
+    vtimes
+}
+
+fn draw_plan(ui: &mut egui::Ui, plan: &Plan, id_source: impl std::hash::Hash) {
+    let timing = get_plan_timing(plan);
+    egui_plot::Plot::new(id_source)
+        .allow_drag(true)
+        .allow_zoom(true)
+        .height(400.0)
+        // .view_aspect(1.)
+        .show(ui, |plot_ui| {
+            for (v_idx, v_plan) in plan.vehicle_tasks.iter().enumerate() {
+                for (t_idx, plan_task) in v_plan.iter().enumerate().take(v_plan.len() - 1) {
+                    let y0 = v_idx as f64;
+                    let y1 = y0 + 1.0;
+                    let (t0, t1) = timing[v_idx][t_idx];
+                    let t0 = t0 as f64;
+                    let t1 = t1 as f64;
+                    let color = match plan_task.task {
+                        Task::Wait => Color32::GRAY,
+                        Task::Takeoff(_) => Color32::RED,
+                        Task::ApproachBase => Color32::YELLOW,
+                        Task::Land => Color32::RED,
+                        Task::GotoPoi(_) => Color32::BLUE,
+                        Task::WatchPoi(_) => Color32::DARK_GREEN,
+                    };
+
+                    if let Task::WatchPoi(task_ref) = plan_task.task {
+                        plot_ui.text(
+                            egui_plot::Text::new(
+                                [0.5 * (t0 + t1), 0.5 * (y0 + y1)].into(),
+                                RichText::new(format!("{:?}", task_ref)).size(14.0),
+                            )
+                            .anchor(Align2::CENTER_CENTER),
+                        );
+                    }
+
+                    plot_ui.polygon(
+                        Polygon::new(vec![[t0, y0], [t1, y0], [t1, y1], [t0, y1]])
+                            .stroke(egui::Stroke::new(1.0, color)),
+                    );
+
+                    // Does it need an arrow
+                    if let Some((v2, s2)) = plan_task.dependencies.event_started {
+                        let (a, b) = timing[v2][s2];
+                        let a = a as f64; let b= b as f64;
+
+                        plot_ui.arrows(
+                            egui_plot::Arrows::new(
+                                egui_plot::PlotPoints::from(vec![[0.9 * t1 + 0.1 * t0, y0 + 0.5]]),
+                                egui_plot::PlotPoints::from(vec![[
+                                    0.9 * a + 0.1 * b,
+                                    v2 as f64 + 0.5,
+                                ]]),
+                            )
+                            .tip_length(10.0)
+                            .color(Color32::GOLD),
+                        );
+                    }
+                }
+            }
+
+            // let vehicles = seq
+            //     .tasks
+            //     .iter()
+            //     .map(|t| t.vehicle_idx)
+            //     .collect::<std::collections::HashSet<_>>();
+            // plot_ui.line(
+            //     egui_plot::Line::new(vec![[*time, 0.0], [*time, vehicles.len() as f64]])
+            //         .color(Color32::BLUE),
+            // );
+            // for vehicle_idx in vehicles {
+            //     // plot_ui.text(egui_plot::Text::new(value::new()));
+            //     plot_ui.text(
+            //         egui_plot::Text::new(
+            //             [0.0, vehicle_idx as f64 + 0.5].into(),
+            //             RichText::new(format!(
+            //                 "{}",
+            //                 vehicle_names
+            //                     .get(vehicle_idx)
+            //                     .map(|x| x.as_str())
+            //                     .unwrap_or("unnamed vehicle")
+            //             ))
+            //             .size(14.0),
+            //         )
+            //         .anchor(Align2::RIGHT_CENTER),
+            //     );
+            // }
+        });
 }

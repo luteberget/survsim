@@ -1,13 +1,25 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{backend::Task, problem::Problem};
 
 pub type Planner = Box<dyn FnMut(&Problem) -> Plan>;
 
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Plan {
     pub vehicle_tasks: Vec<Vec<PlanTask>>,
 }
 
 impl Plan {
+    pub fn print(&self) {
+        for (i, v) in self.vehicle_tasks.iter().enumerate() {
+            println!("vehicle {}", i);
+            for t in v {
+                println!("  - {:?}", t);
+            }
+        }
+    }
+
     pub fn update_pass_time(&mut self, dt: f32) {
         if dt <= 0.0 {
             return;
@@ -58,16 +70,15 @@ impl Plan {
     }
 }
 
-#[derive(Debug)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize)]
 pub struct PlanTask {
     pub task: Task,
     pub dependencies: Dependencies,
 }
 
-#[derive(Debug)]
-#[derive(Clone, Copy)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize)]
 pub struct Dependencies {
     pub time: Option<f32>,
     pub external: Option<f32>,
@@ -78,19 +89,22 @@ impl Dependencies {
     pub fn empty() -> Self {
         Self::default()
     }
-    pub fn event((v_idx,t_idx) :(usize,usize)) -> Self {
+    pub fn event((v_idx, t_idx): (usize, usize)) -> Self {
         Self {
-            event_started: Some((v_idx,t_idx)), ..Default::default()
+            event_started: Some((v_idx, t_idx)),
+            ..Default::default()
         }
     }
-    pub fn external(t :f32) -> Self {
+    pub fn external(t: f32) -> Self {
         Self {
-            external: Some(t), ..Default::default()
+            external: Some(t),
+            ..Default::default()
         }
     }
-    pub fn wait(t :f32) -> Self {
+    pub fn wait(t: f32) -> Self {
         Self {
-            time: Some(t), ..Default::default()
+            time: Some(t),
+            ..Default::default()
         }
     }
 }

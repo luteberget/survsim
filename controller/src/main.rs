@@ -10,7 +10,7 @@ pub mod executive;
 pub mod parse_report;
 
 fn main() {
-    let mut planner: Planner = Box::new(simple_planner);
+    let mut planner: Planner = Box::new(survsim_planner::colgen::solve);
     let mut executive = Executive::new(&mut planner);
     SurvsimBackend::new().main_loop(|backend| executive.update(backend));
 }
@@ -54,10 +54,6 @@ pub fn simple_planner(problem: &Problem) -> Plan {
         v.push(PlanTask {task: Task::Wait, dependencies: Dependencies::wait(f32::INFINITY)});
     }
 
-    for (i,v) in plan.vehicle_tasks. iter().enumerate() {
-        println!("vehicle {}", i);
-        for t in v { println!("  - {:?}", t);}
-    }
-
+    plan.print();
     plan
 }

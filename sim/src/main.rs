@@ -494,7 +494,7 @@ fn main() {
 
     println!("survsim_sim main loop starting.");
     loop {
-        const SIM_SPEED: f32 = 10.0;
+        const SIM_SPEED: f32 = 30.0;
 
         let sim_dt = SIM_SPEED * last_updated.elapsed().as_secs_f32();
         // println!("updateing {}", sim_dt);
