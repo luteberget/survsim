@@ -264,7 +264,7 @@ pub fn plan_vehicle(
 
         let required_batt = 0.999 * required_batt;
 
-        debug!(
+        trace!(
             "req_batt {} prevlabels {:?}",
             required_batt, label_buf[label.prev_node as usize]
         );

@@ -15,13 +15,13 @@ pub struct State {
     pub time: i32,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct EdgeData {
     pub cost: f32,
     pub batt: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Node {
     pub state: State,
     pub outgoing: TinyVec<[(u32, EdgeData, f32); 10]>,

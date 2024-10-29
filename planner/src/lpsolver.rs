@@ -1,5 +1,7 @@
 use std::ffi::{c_void, CStr};
 
+use crate::highs_status::{HighsModelStatus, HighsStatus};
+
 pub struct LPInstance {
     ptr: *mut c_void,
 }
@@ -22,12 +24,34 @@ impl LPInstance {
     pub fn new() -> Self {
         let ptr = unsafe { highs_sys::Highs_create() };
         unsafe {
+            highs_sys::Highs_setStringOptionValue(
+                ptr,
+                CStr::from_bytes_with_nul("presolve\0".as_bytes())
+                    .unwrap()
+                    .as_ptr(),
+                    CStr::from_bytes_with_nul("on\0".as_bytes())
+                    .unwrap()
+                    .as_ptr(),
+            )
+        };
+        // unsafe {
+        //     highs_sys::Highs_setStringOptionValue(
+        //         ptr,
+        //         CStr::from_bytes_with_nul("solver\0".as_bytes())
+        //             .unwrap()
+        //             .as_ptr(),
+        //             CStr::from_bytes_with_nul("ipm\0".as_bytes())
+        //             .unwrap()
+        //             .as_ptr(),
+        //     )
+        // };
+        unsafe {
             highs_sys::Highs_setBoolOptionValue(
                 ptr,
                 CStr::from_bytes_with_nul("output_flag\0".as_bytes())
                     .unwrap()
                     .as_ptr(),
-                0,
+                1,
             )
         };
         Self { ptr }
@@ -64,8 +88,8 @@ impl LPInstance {
                 coeffs.as_ptr(),
             )
         };
-        let status = highs::HighsStatus::try_from(retval);
-        assert!(status == Ok(highs::HighsStatus::OK));
+        let status = HighsStatus::try_from(retval);
+        assert!(status == Ok(HighsStatus::OK));
         new_col_idx
     }
 
@@ -82,6 +106,14 @@ impl LPInstance {
             highs_sys::Highs_writeModel(
                 self.ptr,
                 CStr::from_bytes_with_nul("test.lp\0".as_bytes())
+                    .unwrap()
+                    .as_ptr(),
+            )
+        };
+        unsafe {
+            highs_sys::Highs_writeModel(
+                self.ptr,
+                CStr::from_bytes_with_nul("test.mps\0".as_bytes())
                     .unwrap()
                     .as_ptr(),
             )
@@ -118,13 +150,21 @@ impl LPInstance {
 
     pub fn optimize(&mut self, var_value_out: &mut [f64], row_dual_out: &mut [f64]) -> Option<f64> {
         let _p = hprof::enter("lp optimize");
+
+        // Remove the basis so we don't use the solver incrementally. It's better to use presolve.
+        unsafe {highs_sys::Highs_setLogicalBasis(self.ptr) };
+
         let retval = unsafe { highs_sys::Highs_run(self.ptr) };
         drop(_p);
         let _p = hprof::enter("get_solution");
-        let _status = highs::HighsStatus::try_from(retval);
+        let status = HighsStatus::try_from(retval);
+        assert!(status == Ok(HighsStatus::OK));
         let model_status_retval = unsafe { highs_sys::Highs_getModelStatus(self.ptr) };
-        let _model_status = highs::HighsModelStatus::try_from(model_status_retval);
-        // println!("Solved {:?} {:?}", status, model_status);
+        let model_status = HighsModelStatus::try_from(model_status_retval);
+        assert!(model_status == Ok(HighsModelStatus::Optimal) || model_status == Ok(HighsModelStatus::ModelEmpty));
+
+
+        // println!("Solved {:?} {:?}", _status, _model_status);
 
         // pub const kHighsSolutionStatusNone: HighsInt = 0;
         // pub const kHighsSolutionStatusInfeasible: HighsInt = 1;
@@ -156,6 +196,8 @@ impl LPInstance {
         //     primal_solution_status == 2,
         //     dual_solution_status == 2
         // );
+        // assert!(primal_solution_status == 2);
+        // assert!(dual_solution_status == 2);
 
         if !var_value_out.is_empty() {
             assert!(var_value_out.len() == num_cols);
