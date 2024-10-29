@@ -205,24 +205,25 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
         .vehicles
         .iter()
         .enumerate()
-        .map(|(v_idx, _v)| State {
-            loc: if
-            /*v.start_airborne*/
-            false {
-                Location::DroneInitial(v_idx)
-            } else {
-                Location::Base
-            },
-            time: round_time(/*v.start_time*/ 0.0, time_scale),
+        .map(|(v_idx, v)| {
+            assert!(v.start_airborne || v.start_time.abs() < 1e-3);
+            State {
+                loc: if v.start_airborne {
+                    Location::DroneInitial(v_idx)
+                } else {
+                    Location::Base
+                },
+                time: round_time(v.start_time, time_scale),
+            }
         })
         .collect::<Vec<_>>();
 
     let mut queue: Vec<State> = Default::default();
-    let mut state_incoming: HashMap<State, u32> = Default::default();
+    let mut state_n_incoming: HashMap<State, u32> = Default::default();
     let mut state_outgoing: HashMap<State, Vec<(State, EdgeData)>> = Default::default();
 
     for s in start_states.iter() {
-        state_incoming.entry(*s).or_default();
+        state_n_incoming.entry(*s).or_default();
         state_outgoing.entry(*s).or_default();
         if !queue.contains(s) {
             queue.push(*s);
@@ -255,18 +256,18 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
                 // Does the next state exist?
                 assert!(
                     state_outgoing.contains_key(&next_state)
-                        == state_incoming.contains_key(&next_state)
+                        == state_n_incoming.contains_key(&next_state)
                 );
                 if !state_outgoing.contains_key(&next_state) {
                     state_outgoing.entry(next_state).or_default();
                     queue.push(next_state);
                 }
-                *state_incoming.entry(next_state).or_default() += 1;
+                *state_n_incoming.entry(next_state).or_default() += 1;
             },
         );
     }
 
-    let mut queue: Vec<State> = state_incoming
+    let mut queue: Vec<State> = state_n_incoming
         .iter()
         .filter(|&(_k, n)| (*n == 0))
         .map(|(k, _n)| *k)
@@ -292,7 +293,7 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
         }
 
         for (next_state, _) in state_outgoing[&state].iter() {
-            let deg = state_incoming.get_mut(next_state).unwrap();
+            let deg = state_n_incoming.get_mut(next_state).unwrap();
             *deg -= 1;
             if *deg == 0 {
                 let mut new_idx = queue.len();

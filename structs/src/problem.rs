@@ -14,8 +14,8 @@ pub struct Problem {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Vehicle {
     pub start_battery: f32,
-    // pub start_airborne: bool,
-    // pub start_time: f32,
+    pub start_airborne: bool,
+    pub start_time: f32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

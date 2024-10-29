@@ -30,6 +30,8 @@ pub fn create_planning_problem(report: &Report) -> Problem {
     for drone in report.drones.iter() {
         vehicles.push(Vehicle {
             start_battery: drone.battery_level,
+            start_airborne: drone.is_airborne,
+            start_time: 0.0,
         });
     }
 

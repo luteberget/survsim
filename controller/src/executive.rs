@@ -50,8 +50,7 @@ impl<'a> Executive<'a> {
             .map(|s| current_time - s.time)
             .unwrap_or(0.0);
 
-        #[allow(clippy::nonminimal_bool)]
-        #[allow(unused_variables)]
+        #[allow(unused_variables, clippy::nonminimal_bool)]
         let replan = if let Some(state) = self.state.as_ref() {
             false 
             // ||current_time - state.plan_time >= 20.0e9 
