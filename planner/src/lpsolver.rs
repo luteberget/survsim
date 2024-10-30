@@ -258,8 +258,8 @@ impl LPInstance {
         // Remove the basis so we don't use the solver incrementally. It's better to use presolve.
         unsafe { highs_sys::Highs_setLogicalBasis(self.ptr) };
 
-        let retval = unsafe { highs_sys::Highs_run(self.ptr) };
-        let status = HighsStatus::try_from(retval);
+        let _retval = unsafe { highs_sys::Highs_run(self.ptr) };
+        // let status = HighsStatus::try_from(retval);
         // assert!(status == Ok(HighsStatus::OK));
         let model_status_retval = unsafe { highs_sys::Highs_getModelStatus(self.ptr) };
         HighsModelStatus::try_from(model_status_retval)
@@ -289,11 +289,6 @@ pub enum HighsModelStatus {
     /// Unable to clean after solve
     PostsolveError = MODEL_STATUS_POSTSOLVE_ERROR as isize,
     /// No variables in the model: nothing to optimize
-    /// ```
-    /// use highs::*;
-    /// let solved = ColProblem::new().optimise(Sense::Maximise).solve();
-    /// assert_eq!(solved.status(), HighsModelStatus::ModelEmpty);
-    /// ```
     ModelEmpty = MODEL_STATUS_MODEL_EMPTY as isize,
     /// There is no solution to the problem
     Infeasible = MODEL_STATUS_INFEASIBLE as isize,

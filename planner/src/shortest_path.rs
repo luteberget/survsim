@@ -136,7 +136,9 @@ pub fn plan_vehicle(
     for (src_node_idx, node) in nodes.iter().enumerate() {
         let _pp = hprof::enter("node");
         trace!("Searching from node {} {:?}", src_node_idx, node.state);
-        if /*Some(node.state.time) == final_time && */node.state.loc == Location::SinkNode {
+        if
+        /*Some(node.state.time) == final_time && */
+        node.state.loc == Location::SinkNode {
             // This is a goal node.
             for (l, label) in label_buf[src_node_idx].iter().enumerate() {
                 if label.cost < best.map(|(s, _, _)| s).unwrap_or(f32::INFINITY) {
@@ -165,9 +167,9 @@ pub fn plan_vehicle(
             }
 
             let edge_on_ground = (node.state.loc == Location::Base
-                && target_node.state.loc == Location::Base)
-                || (node.state.loc == Location::SinkNode
-                    && target_node.state.loc == Location::SinkNode);
+                || node.state.loc == Location::SinkNode)
+                && (target_node.state.loc == Location::Base
+                    || target_node.state.loc == Location::SinkNode);
             let edge_time_cost = if edge_on_ground {
                 0.0
             } else {
@@ -179,6 +181,10 @@ pub fn plan_vehicle(
                     .sum()
             };
 
+            if edge_shadow_price.is_infinite() || edge_time_cost.is_infinite() {
+                continue;
+            }
+
             if !edge_on_ground && node.state.time == 0 || node.state.time == 30 {
                 // println!("edge time cost {:?} for {:?}", edge_time_cost, node.state);
             }
@@ -186,9 +192,6 @@ pub fn plan_vehicle(
             for label_idx in 0..label_buf[src_node_idx].len() {
                 trace!(" - LABEL {:?}", label_buf[src_node_idx][label_idx]);
                 n_ops += 1;
-                if edge_shadow_price.is_infinite() {
-                    continue;
-                }
 
                 // // Check constraint
                 // if let Some(c) = constraints.peek() {

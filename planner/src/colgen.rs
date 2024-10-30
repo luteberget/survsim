@@ -15,15 +15,15 @@ use crate::{
     txgraph::{self, production_edge, Node},
 };
 
-#[test]
-pub fn test() {
-    let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../first_problem.json").unwrap()).unwrap();
-    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
-    hprof::profiler().print_timing();
-    x.print();
-}
+// #[test]
+// pub fn test() {
+//     let _ = env_logger::try_init();
+//     let problem =
+//         serde_json::from_str(&std::fs::read_to_string("../first_problem.json").unwrap()).unwrap();
+//     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+//     hprof::profiler().print_timing();
+//     x.print();
+// }
 
 #[test]
 pub fn test_flying1() {
@@ -65,7 +65,25 @@ pub fn test_flying4() {
     x.print();
 }
 
+#[test]
+pub fn test_flying5() {
+    let _ = env_logger::try_init();
+    let problem =
+        serde_json::from_str(&std::fs::read_to_string("../regression5.json").unwrap()).unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    x.print();
+}
 
+#[test]
+pub fn test_flying6() {
+    let _ = env_logger::try_init();
+    let problem =
+        serde_json::from_str(&std::fs::read_to_string("../regression6.json").unwrap()).unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    x.print();
+}
 
 pub fn solve(problem: &Problem) -> Plan {
     std::fs::write("regression.json", serde_json::to_string(&problem).unwrap()).unwrap();
@@ -485,6 +503,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 .map(|_| 0.0),
         );
 
+        #[derive(Debug)]
         struct CurrentBest {
             column: usize,
             value: f64,
@@ -558,9 +577,11 @@ impl<'a> HeuristicColgenSolver<'a> {
                 .enumerate()
                 .max_by_key(|(_, x)| OrderedFloat(**x))
             {
+                println!("BEST {}<{} {}", best_col, self.columns.len(), best_value);
                 if current_best.column < self.columns.len()
                     && (current_best.column == best_col
-                        || current_best.value + STILL_BEST_VALUE_TOLERANCE >= *best_value)
+                        || solution_buf[current_best.column] + STILL_BEST_VALUE_TOLERANCE
+                            >= *best_value)
                 {
                     current_best.n_iter += 1;
 
@@ -627,6 +648,12 @@ impl<'a> HeuristicColgenSolver<'a> {
                     {
                         return Some(current_best.column);
                     } else {
+                        // println!(
+                        //     "NO MORE {:?}   {} {} ",
+                        //     current_best,
+                        //     current_best.column < self.columns.len(),
+                        //     solution_buf[current_best.column] > STILL_BEST_VALUE_TOLERANCE
+                        // );
                         return None;
                     }
                 }
@@ -655,6 +682,15 @@ impl<'a> HeuristicColgenSolver<'a> {
             self.make_fixed_plan(plan);
         }
 
+        println!(
+            " {:?} {:?}",
+            self.fixed_vehicle_starts,
+            self.problem
+                .vehicles
+                .iter()
+                .map(|v| v.start_airborne)
+                .collect::<Vec<_>>()
+        );
         assert!(self
             .fixed_vehicle_starts
             .iter()

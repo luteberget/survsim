@@ -117,7 +117,7 @@ fn succ(
             }
         }
 
-        Location::DroneInitial(_) => {
+        Location::DroneInitial(v_idx) => {
             for poi in problem.pois.iter() {
                 let dist_edge = &(state.loc, Location::Task(poi.task_ref));
                 let dist = dist_map(dist_edge);
@@ -149,7 +149,7 @@ fn succ(
                 },
                 EdgeData {
                     cost: air_time_cost * (dist.dt).max(time_scale as f32),
-                    batt: dist.d_batt,
+                    batt: dist.d_batt.min(problem.vehicles[v_idx].start_battery),
                 },
             );
         }
