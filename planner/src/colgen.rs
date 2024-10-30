@@ -45,7 +45,31 @@ pub fn test_flying2() {
     x.print();
 }
 
+#[test]
+pub fn test_flying3() {
+    let _ = env_logger::try_init();
+    let problem =
+        serde_json::from_str(&std::fs::read_to_string("../regression3.json").unwrap()).unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    x.print();
+}
+
+#[test]
+pub fn test_flying4() {
+    let _ = env_logger::try_init();
+    let problem =
+        serde_json::from_str(&std::fs::read_to_string("../regression4.json").unwrap()).unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    x.print();
+}
+
+
+
 pub fn solve(problem: &Problem) -> Plan {
+    std::fs::write("regression.json", serde_json::to_string(&problem).unwrap()).unwrap();
+
     HeuristicColgenSolver::new(problem).solve_heuristic()
 }
 
@@ -59,6 +83,7 @@ struct HeuristicColgenSolver<'a> {
     problem: &'a Problem,
     vehicle_start_nodes: Vec<(u32, f32)>,
     fixed_vehicle_starts: Vec<bool>,
+    base_node: u32,
     nodes: Vec<Node>,
     time_steps: Vec<i32>,
     time_steps_vehicles: Vec<u32>,
@@ -71,7 +96,6 @@ struct HeuristicColgenSolver<'a> {
 
 fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<BattCycPlan>) -> Plan {
     // Sort components by time
-    // components.sort_by_key(|bcp| nodes[bcp.path[0] as usize].state.time);
     let start_and_end_times = components
         .iter()
         .map(|plan| cyc_start_end(plan, nodes))
@@ -303,7 +327,8 @@ fn cyc_start_end(plan: &BattCycPlan, nodes: &[Node]) -> ((usize, usize), (i32, i
 
 impl<'a> HeuristicColgenSolver<'a> {
     pub fn new(problem: &'a Problem) -> Self {
-        let (vehicle_start_nodes, nodes) = txgraph::build_graph(problem, 1.5 * 3600., 30);
+        let (base_node, vehicle_start_nodes, nodes) =
+            txgraph::build_graph(problem, 1.5 * 3600., 30);
 
         let vehicle_start_nodes = vehicle_start_nodes
             .into_iter()
@@ -322,11 +347,12 @@ impl<'a> HeuristicColgenSolver<'a> {
         let mut hcs = Self::new_empty(
             problem,
             nodes.clone(),
+            base_node,
             vehicle_start_nodes.clone(),
             time_steps.clone(),
         );
         hcs.generate_init_columns();
-        let mut hcs2 = Self::new_empty(problem, nodes, vehicle_start_nodes, time_steps);
+        let mut hcs2 = Self::new_empty(problem, nodes, base_node, vehicle_start_nodes, time_steps);
         hcs2.columns.extend(hcs.fixed_plans);
         hcs2
     }
@@ -334,6 +360,7 @@ impl<'a> HeuristicColgenSolver<'a> {
     pub fn new_empty(
         problem: &'a Problem,
         nodes: Vec<Node>,
+        base_node: u32,
         vehicle_start_nodes: Vec<(u32, f32)>,
         time_steps: Vec<i32>,
     ) -> Self {
@@ -341,7 +368,12 @@ impl<'a> HeuristicColgenSolver<'a> {
 
         let time_steps_vehicles = time_steps
             .iter()
-            .map(|_| (problem.vehicles.len() as u32))
+            .map(|t| {
+                vehicle_start_nodes
+                    .iter()
+                    .filter(|(n, _)| *t >= nodes[*n as usize].state.time)
+                    .count() as u32
+            })
             .collect();
 
         let label_buf: Vec<TinyVec<[crate::shortest_path::Label; 20]>> =
@@ -359,6 +391,7 @@ impl<'a> HeuristicColgenSolver<'a> {
             fixed_vehicle_starts: vec![false; vehicle_start_nodes.len()],
             vehicle_start_nodes,
             label_buf,
+            base_node,
         }
     }
 
@@ -564,10 +597,22 @@ impl<'a> HeuristicColgenSolver<'a> {
                 &shadow_prices,
             );
 
+            let start_nodes = self
+                .vehicle_start_nodes
+                .iter()
+                .enumerate()
+                .filter(|(i, _x)| !self.fixed_vehicle_starts[*i])
+                .map(|(_, x)| *x)
+                .chain(std::iter::once((
+                    self.base_node,
+                    self.problem.battery_capacity,
+                )))
+                .collect::<Vec<_>>();
+
             if let Some(solution) = plan_vehicle(
                 u32::MAX,
                 &self.nodes,
-                &self.vehicle_start_nodes,
+                &start_nodes,
                 0.0,
                 &mut self.label_buf,
                 &Default::default(),

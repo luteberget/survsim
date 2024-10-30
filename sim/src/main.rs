@@ -84,7 +84,7 @@ impl World {
     }   
     }
 
-    pub fn new() -> World {
+    pub fn medium() -> World {
         // Default hard-coded scenario setup
 
         let base_air = Point {
@@ -224,6 +224,83 @@ impl World {
             contacts,
         }
     }
+
+
+
+    pub fn small() -> World {
+        // Default hard-coded scenario setup
+
+        let base_air = Point {
+            x: 180.0,
+            y: 600.0 - 540.0,
+            z: 0.0,
+        };
+        let base_ground = Point {
+            z: -50.0,
+            ..base_air
+        };
+
+        let fixed_tasks = vec![
+            FixedTaskState {
+                loc: Point {
+                    x: 66.0,
+                    y: 600.0 - 300.0,
+                    z: 0.0,
+                },
+            },
+            FixedTaskState {
+                loc: Point {
+                    x: 312.0,
+                    y: 600.0 - 260.0,
+                    z: 0.0,
+                },
+            },
+        ];
+
+        let p1 = vec![
+            Point {
+                x: 53.0,
+                y: 600.0 - 25.0,
+                z: 0.0,
+            },
+            Point {
+                x: 118.0,
+                y: 600.0 - 350.0,
+                z: 0.0,
+            },
+        ];
+
+        let contacts = vec![
+            ContactState {
+                waypoints: p1.clone(),
+                curr_waypoint: 0,
+                curr_loc: p1[0],
+                velocity: 0.5,
+            },
+        ];
+
+
+        let drones = (0..3)
+            .map(|_| DroneState {
+                base_air,
+                base_ground,
+                battery_consumption_hovering: 0.00037, // 45 minutes on full battery
+                battery_consumption_traveling: 0.0011, // 15 minutes on full battery
+                battery_level: 1.0,
+                curr_loc: base_ground,
+                goal: Goal::Wait,
+                velocity: 1.3,
+                })
+            .collect();
+
+        World {
+            curr_time: 0.0,
+            fixed_tasks,
+            drones,
+            contacts,
+        }
+    }
+
 
     pub fn simulate(&mut self, dt: f32) -> Report {
         const SIGHTING_DIST: f32 = 90.0;
@@ -471,7 +548,7 @@ impl World {
 
 impl Default for World {
     fn default() -> Self {
-        Self::new()
+        Self::small()
     }
 }
 
@@ -494,7 +571,7 @@ fn main() {
 
     println!("survsim_sim main loop starting.");
     loop {
-        const SIM_SPEED: f32 = 30.0;
+        const SIM_SPEED: f32 = 5.0;
 
         let sim_dt = SIM_SPEED * last_updated.elapsed().as_secs_f32();
         // println!("updateing {}", sim_dt);

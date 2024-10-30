@@ -35,8 +35,8 @@ impl<'a> Executive<'a> {
     pub fn update(&mut self, backend: &mut dyn Backend) {
         let (current_time, problem) = backend.state();
 
-        std::fs::write("regression2.json", serde_json::to_string(&problem).unwrap()).unwrap();
-        println!("SAVING PROBLEM");
+        // std::fs::write("regression2.json", serde_json::to_string(&problem).unwrap()).unwrap();
+        // println!("SAVING PROBLEM");
 
         let mut current_tasks = problem.pois.iter().map(|p| p.task_ref).collect::<Vec<_>>();
         current_tasks.sort();
@@ -53,7 +53,7 @@ impl<'a> Executive<'a> {
         #[allow(unused_variables, clippy::nonminimal_bool)]
         let replan = if let Some(state) = self.state.as_ref() {
             false 
-            // ||current_time - state.plan_time >= 20.0e9 
+            ||current_time - state.plan_time >= 10.0
             || state.planned_tasks != current_tasks
         } else {
             true

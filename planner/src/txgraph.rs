@@ -61,9 +61,22 @@ fn succ(
     match state.loc {
         Location::SinkNode => {
             // Stay on ground
+            // f(
+            //     State {
+            //         loc: Location::SinkNode,
+            //         time: round_time(state.time as f32 + time_scale as f32, time_scale),
+            //     },
+            //     EdgeData {
+            //         cost: 0.0,
+            //         batt: 0.0,
+            //     },
+            // );
+        }
+        Location::Base => {
+            // Stay on ground
             f(
                 State {
-                    loc: Location::SinkNode,
+                    loc: Location::Base,
                     time: round_time(state.time as f32 + time_scale as f32, time_scale),
                 },
                 EdgeData {
@@ -71,12 +84,11 @@ fn succ(
                     batt: 0.0,
                 },
             );
-        }
-        Location::Base => {
-            // Stay on ground
+
+            // Terminate doing nothing
             f(
                 State {
-                    loc: Location::Base,
+                    loc: Location::SinkNode,
                     time: round_time(state.time as f32 + time_scale as f32, time_scale),
                 },
                 EdgeData {
@@ -198,7 +210,11 @@ fn succ(
     }
 }
 
-pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Vec<u32>, Vec<Node>) {
+pub fn build_graph(
+    problem: &Problem,
+    time_horizon: f32,
+    time_scale: i32,
+) -> (u32, Vec<u32>, Vec<Node>) {
     let _p_graph = hprof::enter("mk_graph");
     // Create the graph
     let start_states = problem
@@ -222,7 +238,10 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
     let mut state_n_incoming: HashMap<State, u32> = Default::default();
     let mut state_outgoing: HashMap<State, Vec<(State, EdgeData)>> = Default::default();
 
-    for s in start_states.iter() {
+    for s in start_states.iter().chain(std::iter::once(&State {
+        loc: Location::Base,
+        time: 0,
+    })) {
         state_n_incoming.entry(*s).or_default();
         state_outgoing.entry(*s).or_default();
         if !queue.contains(s) {
@@ -277,7 +296,7 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
 
     let mut nodes: Vec<Node> = Default::default();
     let mut node_idxs: HashMap<State, u32> = Default::default();
-    let mut final_node: Option<(u32, i32)> = None;
+    // let mut final_node: Option<(u32, i32)> = None;
 
     while let Some(state) = queue.pop() {
         node_idxs.insert(state, nodes.len() as u32);
@@ -286,11 +305,11 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
             state,
         });
 
-        let is_final = (state.loc == Location::Base || state.loc == Location::SinkNode)
-            && state.time > final_node.as_ref().map(|(_, t)| *t).unwrap_or(i32::MIN);
-        if is_final {
-            final_node = Some((node_idxs[&state], state.time));
-        }
+        // let is_final = (state.loc == Location::Base || state.loc == Location::SinkNode)
+        //     && state.time > final_node.as_ref().map(|(_, t)| *t).unwrap_or(i32::MIN);
+        // if is_final {
+        //     final_node = Some((node_idxs[&state], state.time));
+        // }
 
         for (next_state, _) in state_outgoing[&state].iter() {
             let deg = state_n_incoming.get_mut(next_state).unwrap();
@@ -325,6 +344,11 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
         .map(|x| node_idxs[x])
         .collect::<Vec<_>>();
 
+    let default_node = node_idxs[&State {
+        loc: Location::Base,
+        time: 0,
+    }];
+
     debug!(
         "Start nodes {:?}",
         vehicle_start_nodes
@@ -357,5 +381,5 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (Ve
 
     debug_assert!(nodes.last().map(|n| n.state.time) == nodes.iter().map(|n| n.state.time).max());
 
-    (vehicle_start_nodes, nodes)
+    (default_node, vehicle_start_nodes, nodes)
 }

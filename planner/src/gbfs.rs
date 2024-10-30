@@ -23,7 +23,7 @@ struct World<'a> {
 
 impl<'a> World<'a> {
     pub fn new(problem: &'a Problem, time_horizon: f32, time_scale: i32) -> Self {
-        let (vehicle_start_nodes, nodes) = build_graph(problem, time_horizon, time_scale);
+        let (_base_node, vehicle_start_nodes, nodes) = build_graph(problem, time_horizon, time_scale);
 
         let constraints = Default::default();
         let mut label_buf: Vec<TinyVec<[crate::shortest_path::Label; 20]>> =

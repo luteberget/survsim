@@ -18,20 +18,25 @@ pub struct Label {
 }
 
 fn label_dominates(a: &Label, b: &Label) -> bool {
+    const APPROXIMATE_DOMINANCE: bool = true;
+
     // Correct dominance:
-    a.cost <= b.cost && a.remaining_battery >= b.remaining_battery
 
-    // Approximate dominance:
+    if !APPROXIMATE_DOMINANCE {
+        a.cost <= b.cost && a.remaining_battery >= b.remaining_battery
+    } else {
+        // Approximate dominance:
 
-    // if a.cost <= b.cost && a.remaining_battery >= b.remaining_battery {
-    //     return true;
-    // }
+        if a.cost <= b.cost && a.remaining_battery >= b.remaining_battery {
+            return true;
+        }
 
-    // if a.cost < b.cost && a.remaining_battery * 1.1 >= b.remaining_battery {
-    //     return true;
-    // }
+        if a.cost < b.cost && a.remaining_battery * 1.09 >= b.remaining_battery {
+            return true;
+        }
 
-    // false
+        false
+    }
     // || (a.cost < b.cost && a.remaining_battery + 0.02 >= b.remaining_battery)
 }
 
@@ -80,7 +85,7 @@ pub fn plan_vehicle(
     let _p = hprof::enter("plan_vehicle");
     let _p0 = hprof::enter("plan init");
     assert!(nodes.len() == label_buf.len());
-    let final_time = nodes.last().map(|x| x.state.time);
+    // let final_time = nodes.last().map(|x| x.state.time);
     let range = Constraint {
         vehicle,
         node_idx: u32::MIN,
@@ -116,6 +121,10 @@ pub fn plan_vehicle(
             prev_node: u32::MAX,
             remaining_battery: *start_battery,
         });
+        println!(
+            "Start node {:?} {:?}",
+            nodes[*start_node as usize].state, label_buf[*start_node as usize]
+        );
     }
 
     let mut best: Option<(f32, u32, u32)> = Default::default();
@@ -127,7 +136,7 @@ pub fn plan_vehicle(
     for (src_node_idx, node) in nodes.iter().enumerate() {
         let _pp = hprof::enter("node");
         trace!("Searching from node {} {:?}", src_node_idx, node.state);
-        if Some(node.state.time) == final_time && node.state.loc == Location::SinkNode {
+        if /*Some(node.state.time) == final_time && */node.state.loc == Location::SinkNode {
             // This is a goal node.
             for (l, label) in label_buf[src_node_idx].iter().enumerate() {
                 if label.cost < best.map(|(s, _, _)| s).unwrap_or(f32::INFINITY) {
@@ -181,19 +190,19 @@ pub fn plan_vehicle(
                     continue;
                 }
 
-                // Check constraint
-                if let Some(c) = constraints.peek() {
-                    if (c.node_idx as usize) == src_node_idx && (c.edge_idx as usize) == edge_idx {
-                        debug!(
-                            "Cannot use v{} {:?} -- {:?}",
-                            vehicle,
-                            nodes[src_node_idx].state,
-                            nodes[nodes[src_node_idx].outgoing[c.edge_idx as usize].0 as usize]
-                                .state
-                        );
-                        continue;
-                    }
-                }
+                // // Check constraint
+                // if let Some(c) = constraints.peek() {
+                //     if (c.node_idx as usize) == src_node_idx && (c.edge_idx as usize) == edge_idx {
+                //         debug!(
+                //             "Cannot use v{} {:?} -- {:?}",
+                //             vehicle,
+                //             nodes[src_node_idx].state,
+                //             nodes[nodes[src_node_idx].outgoing[c.edge_idx as usize].0 as usize]
+                //                 .state
+                //         );
+                //         continue;
+                //     }
+                // }
 
                 let prev_label = &label_buf[src_node_idx][label_idx];
 
@@ -266,7 +275,8 @@ pub fn plan_vehicle(
 
         trace!(
             "req_batt {} prevlabels {:?}",
-            required_batt, label_buf[label.prev_node as usize]
+            required_batt,
+            label_buf[label.prev_node as usize]
         );
 
         let prev_label = label_buf[label.prev_node as usize]

@@ -68,17 +68,33 @@ impl eframe::App for MyApp {
                             );
                         }
 
-                        for (di,d) in report.drones.iter().enumerate() {
-                            const DRONE_DRAW_OFFSET :f64= 5.0;
+                        for (di, d) in report.drones.iter().enumerate() {
+                            const DRONE_DRAW_OFFSET: f64 = 5.0;
                             plot_ui.text(
                                 egui_plot::Text::new(
-                                    [d.loc.x as f64 + di as f64 *DRONE_DRAW_OFFSET, d.loc.y as f64+ di as f64 *DRONE_DRAW_OFFSET].into(),
+                                    [d.loc.x as f64, d.loc.y as f64].into(),
+                                    RichText::new("õ").size(22.0),
+                                )
+                                .color(if d.is_airborne {
+                                    Color32::DARK_BLUE
+                                } else {
+                                    Color32::BLUE
+                                })
+                                .anchor(Align2::CENTER_TOP),
+                            );
+                            plot_ui.text(
+                                egui_plot::Text::new(
+                                    [
+                                        d.loc.x as f64 + di as f64 * DRONE_DRAW_OFFSET,
+                                        d.loc.y as f64 -di as f64 * DRONE_DRAW_OFFSET,
+                                    ]
+                                    .into(),
                                     RichText::new(&format!(
-                                        "d{} ({}%)",
-                                        di+1,
+                                        "\nd{} ({}%)",
+                                        di + 1,
                                         (d.battery_level * 100.0).round() as i32
                                     ))
-                                    .size(22.0),
+                                    .size(16.0),
                                 )
                                 .color(Color32::BLUE)
                                 .anchor(Align2::CENTER_TOP),
@@ -180,7 +196,6 @@ impl eframe::App for MyApp {
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         // viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
-        
         ..Default::default()
     };
 
@@ -318,7 +333,8 @@ fn draw_plan(ui: &mut egui::Ui, plan: &Plan, id_source: impl std::hash::Hash) {
                     // Does it need an arrow
                     if let Some((v2, s2)) = plan_task.finish_cond.task_start {
                         let (a, b) = timing[v2][s2];
-                        let a = a as f64; let b= b as f64;
+                        let a = a as f64;
+                        let b = b as f64;
 
                         plot_ui.arrows(
                             egui_plot::Arrows::new(
