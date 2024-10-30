@@ -18,7 +18,7 @@ pub struct Label {
 }
 
 fn label_dominates(a: &Label, b: &Label) -> bool {
-    const APPROXIMATE_DOMINANCE: bool = true;
+    const APPROXIMATE_DOMINANCE: bool = false;
 
     // Correct dominance:
 

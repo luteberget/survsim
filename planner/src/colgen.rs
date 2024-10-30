@@ -1,6 +1,9 @@
 use core::f32;
 use ordered_float::OrderedFloat;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    time::{Instant, SystemTime, UNIX_EPOCH},
+};
 use survsim_structs::{
     backend::Task,
     plan::{Cond, Plan, PlanTask},
@@ -85,8 +88,49 @@ pub fn test_flying6() {
     x.print();
 }
 
+#[test]
+pub fn test_toocomplicated1() {
+    let _ = env_logger::try_init();
+    let problem =
+        serde_json::from_str(&std::fs::read_to_string("../no_problem.json").unwrap()).unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_toocomplicated2() {
+    let _ = env_logger::try_init();
+    let problem =
+        serde_json::from_str(&std::fs::read_to_string("../a_problem.json").unwrap()).unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_toocomplicated3() {
+    let _ = env_logger::try_init();
+    let problem =
+        serde_json::from_str(&std::fs::read_to_string("../problem_1730299110063.json").unwrap())
+            .unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
 pub fn solve(problem: &Problem) -> Plan {
-    std::fs::write("regression.json", serde_json::to_string(&problem).unwrap()).unwrap();
+    std::fs::write(
+        format!(
+            "problem_{}.json",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ),
+        serde_json::to_string(&problem).unwrap(),
+    )
+    .unwrap();
 
     HeuristicColgenSolver::new(problem).solve_heuristic()
 }
@@ -141,6 +185,16 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
         problem.vehicles.len()
     ];
 
+    let n_prod_itervals = components
+        .iter()
+        .map(|x| cyc_production_intervals(x, nodes).len())
+        .sum::<usize>();
+    println!(
+        "COUNT ------- {} batt cycles, {} production intervals",
+        components.len(),
+        n_prod_itervals
+    );
+
     for plan_idx in start_time_order {
         let plan = &components[plan_idx];
         let ((start_path_idx, end_path_idx), (start_time, end_time)) =
@@ -177,7 +231,6 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
             .unwrap()
             .is_infinite());
         vplan.last_mut().unwrap().1.finish_cond.time = Some(start_time as f32);
-        const DEFAULT_EXT_TIME: f32 = 30.0;
 
         for (n1, n2) in plan.path[start_path_idx..end_path_idx]
             .iter()
@@ -197,14 +250,17 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
                         s1.state.time,
                         PlanTask {
                             task: Task::Takeoff(t),
-                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(problem.t_takeoff),
                         },
                     ));
                     vplan.push((
                         s1.state.time,
                         PlanTask {
                             task: Task::GotoPoi(t),
-                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(
+                                ((s2.state.time - s1.state.time) as f32 - problem.t_takeoff)
+                                    .max(0.0),
+                            ),
                         },
                     ));
                 }
@@ -213,7 +269,7 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
                         s1.state.time,
                         PlanTask {
                             task: Task::GotoPoi(t),
-                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external((s2.state.time - s1.state.time) as f32),
                         },
                     ));
                 }
@@ -223,14 +279,17 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
                         s1.state.time,
                         PlanTask {
                             task: Task::ApproachBase,
-                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(
+                                ((s2.state.time - s1.state.time) as f32 - problem.t_takeoff)
+                                    .max(0.0),
+                            ),
                         },
                     ));
                     vplan.push((
                         s1.state.time,
                         PlanTask {
                             task: Task::Land,
-                            finish_cond: Cond::external(DEFAULT_EXT_TIME),
+                            finish_cond: Cond::external(problem.t_takeoff),
                         },
                     ));
                 }
@@ -253,7 +312,7 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
                             s1.state.time,
                             PlanTask {
                                 task: Task::GotoPoi(t2),
-                                finish_cond: Cond::external(DEFAULT_EXT_TIME),
+                                finish_cond: Cond::external((s2.state.time - s1.state.time) as f32),
                             },
                         ));
                     }
@@ -287,12 +346,12 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
         }
     }
 
-    for (i, x) in v_plans.iter().enumerate() {
-        print!("v {}", i);
-        for x in x {
-            println!("  - {:?}", x);
-        }
-    }
+    // for (i, x) in v_plans.iter().enumerate() {
+    //     print!("v {}", i);
+    //     for x in x {
+    //         println!("  - {:?}", x);
+    //     }
+    // }
 
     for (_poi, mut watchers) in poi_watchers {
         watchers.sort_by_key(|(t, _, _)| *t);
@@ -369,8 +428,9 @@ impl<'a> HeuristicColgenSolver<'a> {
             vehicle_start_nodes.clone(),
             time_steps.clone(),
         );
-        hcs.generate_init_columns();
+        hcs.generate_good_init_columns();
         let mut hcs2 = Self::new_empty(problem, nodes, base_node, vehicle_start_nodes, time_steps);
+        hcs2.generate_trivial_init_columns();
         hcs2.columns.extend(hcs.fixed_plans);
         hcs2
     }
@@ -413,7 +473,48 @@ impl<'a> HeuristicColgenSolver<'a> {
         }
     }
 
-    fn generate_init_columns(&mut self) {
+    fn generate_trivial_init_columns(&mut self) {
+        for (node, _batt) in self.vehicle_start_nodes.clone().iter() {
+            if !matches!(
+                self.nodes[*node as usize].state.loc,
+                Location::DroneInitial(_)
+            ) {
+                continue;
+            }
+
+            let mut queue: VecDeque<u32> = std::iter::once(*node).collect();
+            let mut parent: HashMap<u32, u32> = Default::default();
+            const MAX_ITER :usize = 10;
+            let mut n_iters = 0;
+            while let Some(node) = queue.pop_front() {
+                n_iters += 1;
+                if n_iters > MAX_ITER {
+                    panic!("could not find trivial solution for airborne vehicle");
+                }
+                if matches!(self.nodes[node as usize].state.loc, Location::SinkNode) {
+                    let mut node = node;
+                    let mut path = vec![node];
+                    while let Some(prev_node) = parent.get(&node) {
+                        path.push(*prev_node);
+                        node = *prev_node;
+                    }
+                    path.reverse();
+                    let plan = BattCycPlan { cost: 0.0, path };
+                    println!("TRIVIAL INIT column {}", cyc_plan_info(&plan, &self.nodes));
+                    self.columns.push(plan);
+                    break;
+                } else {
+                    for (next,_,_) in self.nodes[node as usize].outgoing.iter() {
+                        if parent.insert(*next, node).is_none() {
+                            queue.push_back(*next);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn generate_good_init_columns(&mut self) {
         // Need to generate at least one column per airborne vehicle to make the LP feasible.
         let time_cost = self.time_steps.iter().map(|_| 0.0).collect::<Vec<f32>>();
 
@@ -458,7 +559,7 @@ impl<'a> HeuristicColgenSolver<'a> {
         let mut shadow_prices: Vec<f64> = Default::default();
 
         println!(" Time capacity {:?}", self.time_steps_vehicles);
-
+        println!("FIXED {:?}", self.fixed_vehicle_starts);
         let init_nodes_cstrs = self
             .problem
             .vehicles
@@ -519,6 +620,9 @@ impl<'a> HeuristicColgenSolver<'a> {
             value: 0.0,
         };
 
+        // let mut col_index: HashMap<Vec<u32>, usize> = Default::default();
+        // let mut col_index2: HashMap<String, usize> = Default::default();
+
         drop(_p2);
 
         let macro_obj = self.fixed_plans.iter().map(|c| c.cost).sum::<f32>();
@@ -527,6 +631,30 @@ impl<'a> HeuristicColgenSolver<'a> {
             while n_columns < self.columns.len() {
                 // println!("ADD COL {}", n_columns);
                 let solution = &self.columns[n_columns];
+
+                // if col_index.contains_key(&solution.path) {
+                //     panic!("Existing solution {}", cyc_plan_info(solution, &self.nodes));
+                // } else {
+                //     col_index.insert(solution.path.clone(), n_columns);
+                // }
+
+                // if let std::collections::hash_map::Entry::Vacant(e) =
+                //     col_index2.entry(cyc_plan_info(solution, &self.nodes))
+                // {
+                //     e.insert(n_columns);
+                // } else {
+                //     println!(
+                //         "Existing SIMILAR solution {}\n{:?}\n{:?}",
+                //         cyc_plan_info(solution, &self.nodes),
+                //         self.columns[col_index2[&cyc_plan_info(solution, &self.nodes)]]
+                //         .path.iter().map(|x| self.nodes[*x as usize].state).collect::<Vec<_>>()
+                //         ,
+                //         self.columns[n_columns]
+                //         .path.iter().map(|x| self.nodes[*x as usize].state).collect::<Vec<_>>()
+                //         ,
+                //     );
+                // }
+
                 // for (col_idx1, solution) in self.columns.iter().enumerate() {
                 create_column(
                     &mut self.idxs_buf,
@@ -546,7 +674,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 // }
             }
 
-            // rmp.write_model();
+            rmp.write_model();
             // panic!("ok");
 
             let micro_obj = rmp.optimize(&mut [], &mut []).unwrap() as f32;
@@ -562,8 +690,8 @@ impl<'a> HeuristicColgenSolver<'a> {
 
             // Is it fixing time?
             const STILL_BEST_VALUE_TOLERANCE: f64 = 0.005;
-            const STILL_BEST_ITERS: usize = 25;
-            const MAX_ITERS: usize = 100;
+            const STILL_BEST_ITERS: usize = 100;
+            const MAX_ITERS: usize = 200;
 
             let _p2 = hprof::enter("colgen iter after lp");
             while self.columns.len() > solution_buf.len() {
@@ -759,6 +887,15 @@ impl<'a> HeuristicColgenSolver<'a> {
 
 fn cyc_plan_info(plan: &BattCycPlan, nodes: &[Node]) -> String {
     let ((_start_path_idx, _end_path_idx), (start_time, end_time)) = cyc_start_end(plan, nodes);
+    let prod_intervals = cyc_production_intervals(plan, nodes);
+
+    format!(
+        "Plan(nd={:?}, cost={:.2}, time=({},{}), prod={:?})",
+        nodes[plan.path[0] as usize].state, plan.cost, start_time, end_time, prod_intervals
+    )
+}
+
+fn cyc_production_intervals(plan: &BattCycPlan, nodes: &[Node]) -> Vec<(TaskRef, i32, i32)> {
     let mut prod_intervals: Vec<(TaskRef, i32, i32)> = Vec::new();
     for (n1, n2) in plan.path.iter().zip(plan.path.iter().skip(1)) {
         let (s1, s2) = (&nodes[*n1 as usize].state, &nodes[*n2 as usize].state);
@@ -773,11 +910,7 @@ fn cyc_plan_info(plan: &BattCycPlan, nodes: &[Node]) -> String {
             }
         }
     }
-
-    format!(
-        "Plan(nd={:?}, cost={:.2}, time=({},{}), prod={:?})",
-        nodes[plan.path[0] as usize].state, plan.cost, start_time, end_time, prod_intervals
-    )
+    prod_intervals
 }
 
 // Update vehicle shadow prices
