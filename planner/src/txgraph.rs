@@ -57,7 +57,7 @@ fn succ(
     state: &State,
     mut f: impl FnMut(State, EdgeData),
 ) {
-    let air_time_cost = 1e-3 * (1.0 + 1.0 * state.time as f32 / time_horison);
+    let air_time_cost = 0.1 * (1.0 + 1.0 * state.time as f32 / time_horison);
     match state.loc {
         Location::SinkNode => {
             // Stay on ground

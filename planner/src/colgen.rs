@@ -2,7 +2,7 @@ use core::f32;
 use ordered_float::OrderedFloat;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use survsim_structs::{
     backend::Task,
@@ -93,7 +93,7 @@ pub fn test_toocomplicated1() {
     let _ = env_logger::try_init();
     let problem =
         serde_json::from_str(&std::fs::read_to_string("../no_problem.json").unwrap()).unwrap();
-    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     // x.print();
 }
@@ -103,7 +103,7 @@ pub fn test_toocomplicated2() {
     let _ = env_logger::try_init();
     let problem =
         serde_json::from_str(&std::fs::read_to_string("../a_problem.json").unwrap()).unwrap();
-    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     // x.print();
 }
@@ -114,7 +114,7 @@ pub fn test_toocomplicated3() {
     let problem =
         serde_json::from_str(&std::fs::read_to_string("../problem_1730299110063.json").unwrap())
             .unwrap();
-    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     // x.print();
 }
@@ -190,9 +190,10 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
         .map(|x| cyc_production_intervals(x, nodes).len())
         .sum::<usize>();
     println!(
-        "COUNT ------- {} batt cycles, {} production intervals",
+        "COUNT ------- {} batt cycles, {} production intervals   obj: {:.2}",
         components.len(),
-        n_prod_itervals
+        n_prod_itervals,
+        components.iter().map(|c| c.cost).sum::<f32>(),
     );
 
     for plan_idx in start_time_order {
@@ -484,7 +485,7 @@ impl<'a> HeuristicColgenSolver<'a> {
 
             let mut queue: VecDeque<u32> = std::iter::once(*node).collect();
             let mut parent: HashMap<u32, u32> = Default::default();
-            const MAX_ITER :usize = 10;
+            const MAX_ITER: usize = 10;
             let mut n_iters = 0;
             while let Some(node) = queue.pop_front() {
                 n_iters += 1;
@@ -499,12 +500,12 @@ impl<'a> HeuristicColgenSolver<'a> {
                         node = *prev_node;
                     }
                     path.reverse();
-                    let plan = BattCycPlan { cost: 0.0, path };
+                    let plan = BattCycPlan { cost: 1000.0, path };
                     println!("TRIVIAL INIT column {}", cyc_plan_info(&plan, &self.nodes));
                     self.columns.push(plan);
                     break;
                 } else {
-                    for (next,_,_) in self.nodes[node as usize].outgoing.iter() {
+                    for (next, _, _) in self.nodes[node as usize].outgoing.iter() {
                         if parent.insert(*next, node).is_none() {
                             queue.push_back(*next);
                         }
@@ -620,8 +621,8 @@ impl<'a> HeuristicColgenSolver<'a> {
             value: 0.0,
         };
 
-        // let mut col_index: HashMap<Vec<u32>, usize> = Default::default();
-        // let mut col_index2: HashMap<String, usize> = Default::default();
+        let mut col_index: HashMap<Vec<u32>, usize> = Default::default();
+        let mut col_index2: HashMap<String, usize> = Default::default();
 
         drop(_p2);
 
@@ -632,29 +633,34 @@ impl<'a> HeuristicColgenSolver<'a> {
                 // println!("ADD COL {}", n_columns);
                 let solution = &self.columns[n_columns];
 
-                // if col_index.contains_key(&solution.path) {
-                //     panic!("Existing solution {}", cyc_plan_info(solution, &self.nodes));
-                // } else {
-                //     col_index.insert(solution.path.clone(), n_columns);
-                // }
+                if !cyc_plan_info(solution, &self.nodes).contains("DroneInitial") {
+                    if col_index.contains_key(&solution.path) {
+                        panic!("Existing solution {}", cyc_plan_info(solution, &self.nodes));
+                    } else {
+                        col_index.insert(solution.path.clone(), n_columns);
+                    }
 
-                // if let std::collections::hash_map::Entry::Vacant(e) =
-                //     col_index2.entry(cyc_plan_info(solution, &self.nodes))
-                // {
-                //     e.insert(n_columns);
-                // } else {
-                //     println!(
-                //         "Existing SIMILAR solution {}\n{:?}\n{:?}",
-                //         cyc_plan_info(solution, &self.nodes),
-                //         self.columns[col_index2[&cyc_plan_info(solution, &self.nodes)]]
-                //         .path.iter().map(|x| self.nodes[*x as usize].state).collect::<Vec<_>>()
-                //         ,
-                //         self.columns[n_columns]
-                //         .path.iter().map(|x| self.nodes[*x as usize].state).collect::<Vec<_>>()
-                //         ,
-                //     );
-                // }
-
+                    if let std::collections::hash_map::Entry::Vacant(e) =
+                        col_index2.entry(cyc_plan_info(solution, &self.nodes))
+                    {
+                        e.insert(n_columns);
+                    } else {
+                        panic!(
+                            "Existing SIMILAR solution {}\n{:?}\n{:?}",
+                            cyc_plan_info(solution, &self.nodes),
+                            self.columns[col_index2[&cyc_plan_info(solution, &self.nodes)]]
+                                .path
+                                .iter()
+                                .map(|x| self.nodes[*x as usize].state)
+                                .collect::<Vec<_>>(),
+                            self.columns[n_columns]
+                                .path
+                                .iter()
+                                .map(|x| self.nodes[*x as usize].state)
+                                .collect::<Vec<_>>(),
+                        );
+                    }
+                }
                 // for (col_idx1, solution) in self.columns.iter().enumerate() {
                 create_column(
                     &mut self.idxs_buf,
@@ -674,7 +680,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 // }
             }
 
-            rmp.write_model();
+            // rmp.write_model();
             // panic!("ok");
 
             let micro_obj = rmp.optimize(&mut [], &mut []).unwrap() as f32;
@@ -690,21 +696,29 @@ impl<'a> HeuristicColgenSolver<'a> {
 
             // Is it fixing time?
             const STILL_BEST_VALUE_TOLERANCE: f64 = 0.005;
-            const STILL_BEST_ITERS: usize = 100;
-            const MAX_ITERS: usize = 200;
+            // const STILL_BEST_ITERS: usize = 500;
+            const STILL_BEST_ITERS: usize = 1;
+            const MAX_ITERS: usize = 1;
 
             let _p2 = hprof::enter("colgen iter after lp");
             while self.columns.len() > solution_buf.len() {
                 solution_buf.push(Default::default());
             }
             rmp.get_solution(&mut solution_buf);
-            println!("solution {:?}", solution_buf);
+            println!("solution {:?}", &solution_buf[..solution_buf.len().min(20)]);
 
-            if let Some((best_col, best_value)) = solution_buf
+            if let Some((_best_col, best_value)) = solution_buf
                 .iter()
                 .enumerate()
-                .max_by_key(|(_, x)| OrderedFloat(**x))
+                .max_by_key(|(i, x)| OrderedFloat(**x))
             {
+                let (best_col, best_value) = solution_buf
+                    .iter()
+                    .enumerate()
+                    .filter(|(_i, x)| **x + STILL_BEST_VALUE_TOLERANCE >= *best_value)
+                    .min_by_key(|(i, x)| OrderedFloat(self.columns[*i].cost as f64 * (**x)))
+                    .unwrap();
+
                 println!("BEST {}<{} {}", best_col, self.columns.len(), best_value);
                 if current_best.column < self.columns.len()
                     && (current_best.column == best_col
@@ -713,7 +727,12 @@ impl<'a> HeuristicColgenSolver<'a> {
                 {
                     current_best.n_iter += 1;
 
-                    if current_best.n_iter >= STILL_BEST_ITERS {
+                    let iter_limit = if self.fixed_plans.is_empty() {
+                        MAX_ITERS
+                    } else {
+                        STILL_BEST_ITERS
+                    };
+                    if current_best.n_iter >= iter_limit {
                         println!(
                             "   ITERS still best {} after iters {} value={}",
                             STILL_BEST_ITERS, n_iterations, current_best.value
@@ -734,6 +753,8 @@ impl<'a> HeuristicColgenSolver<'a> {
                     return Some(best_col);
                 }
             }
+
+            println!(" BEST COL {:?}", current_best);
 
             n_iterations += 1;
             rmp.get_dual_solution(&mut shadow_prices);
@@ -899,16 +920,30 @@ fn cyc_production_intervals(plan: &BattCycPlan, nodes: &[Node]) -> Vec<(TaskRef,
     let mut prod_intervals: Vec<(TaskRef, i32, i32)> = Vec::new();
     for (n1, n2) in plan.path.iter().zip(plan.path.iter().skip(1)) {
         let (s1, s2) = (&nodes[*n1 as usize].state, &nodes[*n2 as usize].state);
-        if s1.loc.poi().is_some() && s1.loc == s2.loc {
-            if let Some((_t, _t1, t2)) = prod_intervals
-                .last_mut()
-                .filter(|(t, _, _)| *t == s1.loc.poi().unwrap())
+        if s1.loc.poi().is_some() {
+            if prod_intervals.last().is_none()
+                || prod_intervals.last().unwrap().0 != s1.loc.poi().unwrap()
+                || prod_intervals.last().unwrap().2 != s1.time
             {
-                *t2 = s2.time;
-            } else {
-                prod_intervals.push((s1.loc.poi().unwrap(), s1.time, s2.time));
+                prod_intervals.push((s1.loc.poi().unwrap(), s1.time, s1.time));
+            }
+
+            prod_intervals.last_mut().unwrap().2 = s1.time;
+            if s2.loc == s1.loc {
+                prod_intervals.last_mut().unwrap().2 = s2.time;
             }
         }
+
+        //  && s1.loc == s2.loc {
+        //     if let Some((_t, _t1, t2)) = prod_intervals
+        //         .last_mut()
+        //         .filter(|(t, _, _)| *t == s1.loc.poi().unwrap())
+        //     {
+        //         *t2 = s2.time;
+        //     } else {
+        //         prod_intervals.push((s1.loc.poi().unwrap(), s1.time, s2.time));
+        //     }
+        // }
     }
     prod_intervals
 }
