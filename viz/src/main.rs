@@ -8,8 +8,9 @@ use survsim_structs::{backend::Task, plan::Plan, report::Report, Goal, TaskRef};
 struct MyApp {
     report: Option<Report>,
     plan: Option<Plan>,
-    _mqtt_cli: paho_mqtt::Client,
+    mqtt_cli: paho_mqtt::Client,
     mqtt_rx: paho_mqtt::Receiver<Option<paho_mqtt::Message>>,
+    time_factor: f32,
 }
 
 impl eframe::App for MyApp {
@@ -31,6 +32,21 @@ impl eframe::App for MyApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            egui::TopBottomPanel::top("top").show_inside(ui, |ui| {
+                let response = ui.add(
+                    egui::Slider::new(&mut self.time_factor, 0.1..=60.0)
+                        .text("simulation time factor"),
+                );
+                if response.changed() {
+                    self.mqtt_cli
+                        .publish(paho_mqtt::Message::new(
+                            "/survsim/time_factor",
+                            serde_json::to_string(&self.time_factor).unwrap(),
+                            1,
+                        ))
+                        .unwrap();
+                }
+            });
             egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
                 if let Some(plan) = &self.plan {
                     draw_plan(ui, plan, "plan");
@@ -86,7 +102,7 @@ impl eframe::App for MyApp {
                                 egui_plot::Text::new(
                                     [
                                         d.loc.x as f64 + di as f64 * DRONE_DRAW_OFFSET,
-                                        d.loc.y as f64 -di as f64 * DRONE_DRAW_OFFSET,
+                                        d.loc.y as f64 - di as f64 * DRONE_DRAW_OFFSET,
                                     ]
                                     .into(),
                                     RichText::new(&format!(
@@ -223,8 +239,9 @@ fn main() -> Result<(), eframe::Error> {
             Ok(Box::new(MyApp {
                 report: None,
                 plan: None,
-                _mqtt_cli: mqtt_cli,
+                mqtt_cli,
                 mqtt_rx,
+                time_factor: 1.0,
             }))
         }),
     )

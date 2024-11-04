@@ -39,49 +39,47 @@ impl World {
     }
 
     pub fn tiny() -> World {
-     // Default hard-coded scenario setup
+        // Default hard-coded scenario setup
 
-     let base_air = Point {
-        x: 180.0,
-        y: 600.0 - 540.0,
-        z: 0.0,
-    };
-    let base_ground = Point {
-        z: -50.0,
-        ..base_air
-    };
+        let base_air = Point {
+            x: 180.0,
+            y: 600.0 - 540.0,
+            z: 0.0,
+        };
+        let base_ground = Point {
+            z: -50.0,
+            ..base_air
+        };
 
-    let fixed_tasks = vec![
-        FixedTaskState {
+        let fixed_tasks = vec![FixedTaskState {
             loc: Point {
                 x: 66.0,
                 y: 600.0 - 300.0,
                 z: 0.0,
             },
-        },
-    ];
+        }];
 
-    // Typical distances are 400. Should travel there in 5 minutes = 300 sec. Velocity: 1.3
+        // Typical distances are 400. Should travel there in 5 minutes = 300 sec. Velocity: 1.3
 
-    let drones = (0..1)
-        .map(|_| DroneState {
-            base_air,
-            base_ground,
-            battery_consumption_hovering: 0.00037, // 45 minutes on full battery
-            battery_consumption_traveling: 0.0011, // 15 minutes on full battery
-            battery_level: 1.0,
-            curr_loc: base_ground,
-            goal: Goal::Wait,
-            velocity: 1.3,
-        })
-        .collect();
+        let drones = (0..1)
+            .map(|_| DroneState {
+                base_air,
+                base_ground,
+                battery_consumption_hovering: 0.00037, // 45 minutes on full battery
+                battery_consumption_traveling: 0.0011, // 15 minutes on full battery
+                battery_level: 1.0,
+                curr_loc: base_ground,
+                goal: Goal::Wait,
+                velocity: 1.3,
+            })
+            .collect();
 
-    World {
-        curr_time: 0.0,
-        fixed_tasks,
-        drones,
-        contacts: Default::default(),
-    }   
+        World {
+            curr_time: 0.0,
+            fixed_tasks,
+            drones,
+            contacts: Default::default(),
+        }
     }
 
     pub fn medium() -> World {
@@ -214,7 +212,7 @@ impl World {
                 curr_loc: base_ground,
                 goal: Goal::Wait,
                 velocity: 1.3,
-                })
+            })
             .collect();
 
         World {
@@ -224,8 +222,6 @@ impl World {
             contacts,
         }
     }
-
-
 
     pub fn small() -> World {
         // Default hard-coded scenario setup
@@ -271,14 +267,13 @@ impl World {
         ];
 
         let contacts = vec![
-            ContactState {
-                waypoints: p1.clone(),
-                curr_waypoint: 0,
-                curr_loc: p1[0],
-                velocity: 0.5,
-            },
+            // ContactState {
+            //     waypoints: p1.clone(),
+            //     curr_waypoint: 0,
+            //     curr_loc: p1[0],
+            //     velocity: 0.5,
+            // },
         ];
-
 
         let drones = (0..3)
             .map(|_| DroneState {
@@ -290,7 +285,7 @@ impl World {
                 curr_loc: base_ground,
                 goal: Goal::Wait,
                 velocity: 1.3,
-                })
+            })
             .collect();
 
         World {
@@ -300,7 +295,6 @@ impl World {
             contacts,
         }
     }
-
 
     pub fn simulate(&mut self, dt: f32) -> Report {
         const SIGHTING_DIST: f32 = 90.0;
@@ -562,6 +556,7 @@ fn main() {
         .finalize();
     mqtt_cli.connect(conn_opts).unwrap();
     mqtt_cli.subscribe("/survsim/goal", 1).unwrap();
+    mqtt_cli.subscribe("/survsim/time_factor", 1).unwrap();
     let mqtt_rx = mqtt_cli.start_consuming();
 
     let mut world = World::default();
@@ -570,10 +565,9 @@ fn main() {
     let update_frequency = std::time::Duration::from_millis(10);
 
     println!("survsim_sim main loop starting.");
+    let mut time_factor = 1.0;
     loop {
-        const SIM_SPEED: f32 = 5.0;
-
-        let sim_dt = SIM_SPEED * last_updated.elapsed().as_secs_f32();
+        let sim_dt = time_factor * last_updated.elapsed().as_secs_f32();
         // println!("updateing {}", sim_dt);
         let report = world.simulate(sim_dt);
         // println!("report {:?}", report);
@@ -594,13 +588,26 @@ fn main() {
                     println!("none");
                 }
                 Ok(Some(msg)) => {
-                    match serde_json::from_slice::<GoalMsg>(msg.payload_str().as_bytes()) {
-                        Ok(goal_msg) => {
-                            world.drones[goal_msg.drone].goal = goal_msg.goal;
+                    if msg.topic() == "/survsim/goal" {
+                        match serde_json::from_slice::<GoalMsg>(msg.payload_str().as_bytes()) {
+                            Ok(goal_msg) => {
+                                world.drones[goal_msg.drone].goal = goal_msg.goal;
+                            }
+                            Err(x) => {
+                                println!("WARNING: received malformed message {:?}", x);
+                            }
                         }
-                        Err(x) => {
-                            println!("WARNING: received malformed message {:?}", x);
+                    } else if msg.topic() == "/survsim/time_factor" {
+                        match serde_json::from_slice::<f32>(msg.payload_str().as_bytes()) {
+                            Ok(x) => {
+                                time_factor = x;
+                            }
+                            Err(x) => {
+                                println!("WARNING: received malformed message {:?}", x);
+                            }
                         }
+                    } else {
+                        panic!("unknown topic {}", msg.topic());
                     }
                 }
                 Err(e) => {
