@@ -313,7 +313,7 @@ fn draw_plan(ui: &mut egui::Ui, plan: &Plan, id_source: impl std::hash::Hash) {
     egui_plot::Plot::new(id_source)
         .allow_drag(true)
         .allow_zoom(true)
-        .height(400.0)
+        .height(200.0)
         // .view_aspect(1.)
         .show(ui, |plot_ui| {
             for (v_idx, v_plan) in plan.vehicle_tasks.iter().enumerate() {

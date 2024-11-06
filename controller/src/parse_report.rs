@@ -31,7 +31,11 @@ pub fn create_planning_problem(report: &Report) -> Problem {
         vehicles.push(Vehicle {
             start_battery: drone.battery_level,
             start_airborne: drone.is_airborne,
-            start_time: 0.0,
+            start_time: drone.start_time,
+            curr_task: match drone.goal {
+                survsim_structs::Goal::TaskRef(t) => Some(t),
+                _ => None,
+            },
         });
     }
 

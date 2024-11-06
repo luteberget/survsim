@@ -46,6 +46,7 @@ pub struct DroneReport {
     pub tasks_in_sight: Vec<TaskRef>,
     pub at_base: bool,
     pub is_airborne: bool,
+    pub start_time :f32,
 }
 
 // #[derive(Clone, Serialize,Deserialize, Debug)]

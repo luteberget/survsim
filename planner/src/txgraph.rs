@@ -4,10 +4,11 @@ use log::{debug, trace};
 use survsim_structs::{
     problem::{Dist, Problem},
     report::Location,
+    Goal,
 };
 use tinyvec::TinyVec;
 
-use crate::round_time;
+use crate::{ceil_time, round_time};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct State {
@@ -33,9 +34,7 @@ pub fn production_edge(nodes: &[Node], node: usize) -> Option<usize> {
             .outgoing
             .iter()
             .enumerate()
-            .filter(|&(_e_idx, (n2, _, _))| {
-                nodes[*n2 as usize].state.loc == Location::Task(task_ref)
-            })
+            .filter(|&(_e_idx, (n2, _, _))| nodes[*n2 as usize].state.loc == Location::Task(task_ref))
             .map(|(e_idx, _)| (e_idx))
             .next(),
         _ => None,
@@ -58,163 +57,126 @@ fn succ(
     mut f: impl FnMut(State, EdgeData),
 ) {
     let air_time_cost = 0.1 * (1.0 + 1.0 * state.time as f32 / time_horison);
+    let next_time = round_time(state.time as f32 + time_scale as f32, time_scale);
+    let zero_edge = EdgeData { cost: 0.0, batt: 0.0 };
     match state.loc {
-        Location::SinkNode => {
-            // Stay on ground
-            // f(
-            //     State {
-            //         loc: Location::SinkNode,
-            //         time: round_time(state.time as f32 + time_scale as f32, time_scale),
-            //     },
-            //     EdgeData {
-            //         cost: 0.0,
-            //         batt: 0.0,
-            //     },
-            // );
-        }
+        Location::SinkNode => {}
         Location::Base => {
-            // Stay on ground
-            f(
-                State {
-                    loc: Location::Base,
-                    time: round_time(state.time as f32 + time_scale as f32, time_scale),
-                },
-                EdgeData {
-                    cost: 0.0,
-                    batt: 0.0,
-                },
-            );
-
-            // Terminate doing nothing
-            f(
-                State {
-                    loc: Location::SinkNode,
-                    time: round_time(state.time as f32 + time_scale as f32, time_scale),
-                },
-                EdgeData {
-                    cost: 0.0,
-                    batt: 0.0,
-                },
-            );
-
-            // Go to pois
-            for poi in problem.pois.iter() {
-                let dist_edge = &(state.loc, Location::Task(poi.task_ref));
-                let dist = dist_map(dist_edge);
-                f(
-                    State {
-                        loc: Location::Task(poi.task_ref),
-                        time: round_time(
-                            state.time as f32 + (dist.dt).max(time_scale as f32),
-                            time_scale,
-                        ),
-                    },
-                    EdgeData {
-                        cost: air_time_cost * (dist.dt).max(time_scale as f32),
-                        batt: dist.d_batt,
-                    },
-                )
-            }
+            f(State { loc: Location::Base, time: next_time }, zero_edge);
+            f(State { loc: Location::SinkNode, time: next_time }, zero_edge);
+            pois_transitions(problem, state, &dist_map, time_scale, &mut f, air_time_cost);
         }
 
-        Location::DroneInitial(v_idx) => {
-            for poi in problem.pois.iter() {
-                let dist_edge = &(state.loc, Location::Task(poi.task_ref));
-                let dist = dist_map(dist_edge);
-                f(
-                    State {
-                        loc: Location::Task(poi.task_ref),
-                        time: round_time(
-                            state.time as f32 + (dist.dt).max(time_scale as f32),
-                            time_scale,
-                        ),
-                    },
-                    EdgeData {
-                        cost: air_time_cost * (dist.dt).max(time_scale as f32),
-                        batt: dist.d_batt,
-                    },
-                )
-            }
-
-            // Go to base
-            let dist_edge = &(state.loc, Location::Base);
-            let dist = dist_map(dist_edge);
-            f(
-                State {
-                    loc: Location::SinkNode,
-                    time: round_time(
-                        state.time as f32 + (dist.dt).max(time_scale as f32),
-                        time_scale,
-                    ),
-                },
-                EdgeData {
-                    cost: air_time_cost * (dist.dt).max(time_scale as f32),
-                    batt: dist.d_batt.min(problem.vehicles[v_idx].start_battery),
-                },
-            );
-        }
-
-        Location::Task(curr_task) => {
-            // Go to another poi
-            for poi in problem.pois.iter() {
-                if poi.task_ref == curr_task {
-                    // Produce reward
-                    f(
-                        State {
-                            loc: Location::Task(curr_task),
-                            time: round_time(state.time as f32 + time_scale as f32, time_scale),
-                        },
-                        EdgeData {
-                            cost: -(time_scale as f32) * poi.reward_rate
-                                + air_time_cost * time_scale as f32,
-                            batt: poi.battery_rate * time_scale as f32,
-                        },
-                    );
-                } else {
-                    // Go to another poi
-                    let dist_edge = &(state.loc, Location::Task(poi.task_ref));
-                    let dist = dist_map(dist_edge);
-                    f(
-                        State {
-                            loc: Location::Task(poi.task_ref),
-                            time: round_time(
-                                state.time as f32 + (dist.dt).max(time_scale as f32),
-                                time_scale,
-                            ),
-                        },
-                        EdgeData {
-                            cost: air_time_cost * (dist.dt).max(time_scale as f32),
-                            batt: dist.d_batt,
-                        },
-                    );
-                }
-            }
-
-            // Go to base
-            let dist_edge = &(state.loc, Location::Base);
-            let dist = dist_map(dist_edge);
-            f(
-                State {
-                    loc: Location::SinkNode,
-                    time: round_time(
-                        state.time as f32 + (dist.dt).max(time_scale as f32),
-                        time_scale,
-                    ),
-                },
-                EdgeData {
-                    cost: air_time_cost * (dist.dt).max(time_scale as f32),
-                    batt: dist.d_batt,
-                },
-            );
+        Location::DroneInitial(_) | Location::Task(_) => {
+            pois_transitions(problem, state, &dist_map, time_scale, &mut f, air_time_cost);
+            base_transition(problem, state, dist_map, &mut f, time_scale, air_time_cost);
         }
     }
 }
 
-pub fn build_graph(
+fn base_transition(
     problem: &Problem,
-    time_horizon: f32,
+    state: &State,
+    dist_map: impl Fn(&(Location, Location)) -> Dist,
+    f: &mut impl FnMut(State, EdgeData),
     time_scale: i32,
-) -> (u32, Vec<u32>, Vec<Node>) {
+    air_time_cost: f32,
+) {
+    // Go to base
+    let dist_edge = &(state.loc, Location::Base);
+    let dist = dist_map(dist_edge);
+    let batt = if let Location::DroneInitial(v_idx) = state.loc {
+        println!(
+            "batt req {} {}",
+            v_idx,
+            dist.d_batt.min(problem.vehicles[v_idx].start_battery)
+        );
+        dist.d_batt.min(problem.vehicles[v_idx].start_battery)
+    } else {
+        dist.d_batt
+    };
+
+    let stability_bonus = if let Location::DroneInitial(v_idx) = state.loc {
+        if problem.vehicles[v_idx].curr_task == None {
+            STABILITY_BONUS
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    f(
+        State {
+            loc: Location::SinkNode,
+            time: round_time(state.time as f32 + (dist.dt).max(time_scale as f32), time_scale),
+        },
+        EdgeData {
+            cost: air_time_cost * (dist.dt).max(time_scale as f32) + stability_bonus,
+            batt: batt,
+        },
+    );
+}
+
+const STABILITY_BONUS :f32 = -500.0;
+
+fn pois_transitions(
+    problem: &Problem,
+    state: &State,
+    dist_map: &impl Fn(&(Location, Location)) -> Dist,
+    time_scale: i32,
+    f: &mut impl FnMut(State, EdgeData),
+    air_time_cost: f32,
+) {
+    for poi in problem.pois.iter() {
+        let same_poi = if let Location::Task(t) = state.loc {
+            t == poi.task_ref
+        } else {
+            false
+        };
+
+        if same_poi {
+            // Produce reward
+            f(
+                State {
+                    loc: state.loc,
+                    time: round_time(state.time as f32 + time_scale as f32, time_scale),
+                },
+                EdgeData {
+                    cost: -(time_scale as f32) * poi.reward_rate + air_time_cost * time_scale as f32,
+                    batt: poi.battery_rate * time_scale as f32,
+                },
+            );
+        } else {
+            let dist_edge = &(state.loc, Location::Task(poi.task_ref));
+            let dist = dist_map(dist_edge);
+            let t_rounded = round_time(state.time as f32 + (dist.dt).max(time_scale as f32), time_scale);
+            // let t_float = (state.time as f32 + dist.dt).min(t_ceil as f32);
+            let dt_production = 0.0;//t_ceil as f32 - t_float;
+
+            let stability_bonus = if let Location::DroneInitial(v_idx) = state.loc {
+                if problem.vehicles[v_idx].curr_task == Some(poi.task_ref) {
+                    STABILITY_BONUS
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+        
+
+            f(
+                State { loc: Location::Task(poi.task_ref), time: t_rounded },
+                EdgeData {
+                    cost: air_time_cost * (t_rounded as f32 - state.time as f32) - dt_production * poi.reward_rate + stability_bonus,
+                    batt: dist.d_batt,
+                },
+            )
+        }
+    }
+}
+
+pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (u32, Vec<u32>, Vec<Node>) {
     let _p_graph = hprof::enter("mk_graph");
     // Create the graph
     let start_states = problem
@@ -238,10 +200,10 @@ pub fn build_graph(
     let mut state_n_incoming: HashMap<State, u32> = Default::default();
     let mut state_outgoing: HashMap<State, Vec<(State, EdgeData)>> = Default::default();
 
-    for s in start_states.iter().chain(std::iter::once(&State {
-        loc: Location::Base,
-        time: 0,
-    })) {
+    for s in start_states
+        .iter()
+        .chain(std::iter::once(&State { loc: Location::Base, time: 0 }))
+    {
         state_n_incoming.entry(*s).or_default();
         state_outgoing.entry(*s).or_default();
         if !queue.contains(s) {
@@ -267,16 +229,10 @@ pub fn build_graph(
                 if next_state.time > round_time(time_horizon, time_scale) {
                     return;
                 }
-                state_outgoing
-                    .get_mut(&state)
-                    .unwrap()
-                    .push((next_state, edge_data));
+                state_outgoing.get_mut(&state).unwrap().push((next_state, edge_data));
 
                 // Does the next state exist?
-                assert!(
-                    state_outgoing.contains_key(&next_state)
-                        == state_n_incoming.contains_key(&next_state)
-                );
+                assert!(state_outgoing.contains_key(&next_state) == state_n_incoming.contains_key(&next_state));
                 if !state_outgoing.contains_key(&next_state) {
                     state_outgoing.entry(next_state).or_default();
                     queue.push(next_state);
@@ -300,10 +256,7 @@ pub fn build_graph(
 
     while let Some(state) = queue.pop() {
         node_idxs.insert(state, nodes.len() as u32);
-        nodes.push(Node {
-            outgoing: Default::default(),
-            state,
-        });
+        nodes.push(Node { outgoing: Default::default(), state });
 
         // let is_final = (state.loc == Location::Base || state.loc == Location::SinkNode)
         //     && state.time > final_node.as_ref().map(|(_, t)| *t).unwrap_or(i32::MIN);
@@ -339,15 +292,9 @@ pub fn build_graph(
         nodes.iter().map(|n| n.outgoing.len()).sum::<usize>()
     );
 
-    let vehicle_start_nodes = start_states
-        .iter()
-        .map(|x| node_idxs[x])
-        .collect::<Vec<_>>();
+    let vehicle_start_nodes = start_states.iter().map(|x| node_idxs[x]).collect::<Vec<_>>();
 
-    let default_node = node_idxs[&State {
-        loc: Location::Base,
-        time: 0,
-    }];
+    let default_node = node_idxs[&State { loc: Location::Base, time: 0 }];
 
     debug!(
         "Start nodes {:?}",
@@ -360,13 +307,7 @@ pub fn build_graph(
     // Should be topologically ordered
     for (i, n1) in nodes.iter().enumerate() {
         for (j, _, _) in n1.outgoing.iter() {
-            trace!(
-                " {} {:?} --  {}  {:?} ",
-                i,
-                n1.state,
-                j,
-                nodes[*j as usize].state
-            );
+            trace!(" {} {:?} --  {}  {:?} ", i, n1.state, j, nodes[*j as usize].state);
             assert!(i < (*j as usize));
         }
     }

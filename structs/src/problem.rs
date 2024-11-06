@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{report::Location, TaskRef};
+use crate::{plan::PlanTask, report::Location, Goal, TaskRef};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Problem {
@@ -16,6 +16,7 @@ pub struct Vehicle {
     pub start_battery: f32,
     pub start_airborne: bool,
     pub start_time: f32,
+    pub curr_task :Option<TaskRef>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -54,7 +54,7 @@ impl<'a> Executive<'a> {
         let replan = if let Some(state) = self.state.as_ref() {
             false 
             ||current_time - state.plan_time >= 10.0
-            || state.planned_tasks != current_tasks
+            // || state.planned_tasks != current_tasks
         } else {
             true
         };
@@ -67,6 +67,7 @@ impl<'a> Executive<'a> {
 
         let (plan_time, mut plan) = if replan {
             let new_plan = (*self.planner)(problem);
+            // new_plan.print();
             (current_time, new_plan)
         } else {
             self.state.take().map(|s| (s.plan_time, s.plan)).unwrap()
@@ -82,6 +83,7 @@ impl<'a> Executive<'a> {
                 let backend_task = self.backend_tasks.get_mut(&t).unwrap();
                 assert!(!backend_task.finished);
                 backend_task.finished = true;
+                
 
                 let vehicle_plan = &mut plan.vehicle_tasks[backend_task.v_idx];
                 let is_correct_task = !vehicle_plan.is_empty()
@@ -97,20 +99,25 @@ impl<'a> Executive<'a> {
                     println!("External task finished {:?}", backend_task);
                     vehicle_plan[0].finish_cond.external = None;
                 }
+                
             }
 
             plan.update_remove_ready_tasks();
 
             // Diff and dispatch
             for (v_idx, plan_task) in plan.vehicle_tasks.iter().map(|v| &v[0]).enumerate() {
+                // println!("Vidx {} should be {:?}", v_idx, plan_task);
+
                 let start_new_task = if let Some(old_task_ref) = self.vehicle_current_task[v_idx] {
                     let backend_task = &self.backend_tasks[&old_task_ref];
-                    if !backend_task
+                    if backend_task.finished || !backend_task
                         .plan_task
                         .task
                         .eq_ignore_takeoff_direction(&plan_task.task)
                     {
+
                         if !backend_task.finished {
+                            println!("cancelling v={} {:?} ----> {:?}", v_idx, backend_task.plan_task, plan_task);
                             backend.end_task(old_task_ref);
                         }
                         self.backend_tasks.remove(&old_task_ref);

@@ -31,8 +31,7 @@ use crate::{
 #[test]
 pub fn test_flying1() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../regression1.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression1.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     x.print();
@@ -41,8 +40,7 @@ pub fn test_flying1() {
 #[test]
 pub fn test_flying2() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../regression2.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression2.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     x.print();
@@ -51,8 +49,7 @@ pub fn test_flying2() {
 #[test]
 pub fn test_flying3() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../regression3.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression3.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     x.print();
@@ -61,8 +58,7 @@ pub fn test_flying3() {
 #[test]
 pub fn test_flying4() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../regression4.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression4.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     x.print();
@@ -71,8 +67,7 @@ pub fn test_flying4() {
 #[test]
 pub fn test_flying5() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../regression5.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression5.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     x.print();
@@ -81,8 +76,7 @@ pub fn test_flying5() {
 #[test]
 pub fn test_flying6() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../regression6.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression6.json").unwrap()).unwrap();
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     x.print();
@@ -91,8 +85,7 @@ pub fn test_flying6() {
 #[test]
 pub fn test_toocomplicated1() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../no_problem.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../no_problem.json").unwrap()).unwrap();
     let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     // x.print();
@@ -101,20 +94,155 @@ pub fn test_toocomplicated1() {
 #[test]
 pub fn test_toocomplicated2() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../a_problem.json").unwrap()).unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../a_problem.json").unwrap()).unwrap();
     let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     hprof::profiler().print_timing();
     // x.print();
 }
 
 #[test]
+pub fn test_regression7() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression7.json").unwrap()).unwrap();
+    let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_regression8() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression8_.json").unwrap()).unwrap();
+    let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_regression9() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression9.json").unwrap()).unwrap();
+    let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_regression10() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression10.json").unwrap()).unwrap();
+    let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    x.print();
+}
+
+
+#[test]
+pub fn test_regression11() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression11.json").unwrap()).unwrap();
+    let x = solve_greedy_cycles(&problem);
+    hprof::profiler().print_timing();
+    x.print();
+}
+
+#[test]
+pub fn test_regression12() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../regression12.json").unwrap()).unwrap();
+    let x = solve_greedy_cycles(&problem);
+    hprof::profiler().print_timing();
+    x.print();
+}
+
+
+#[test]
 pub fn test_toocomplicated3() {
     let _ = env_logger::try_init();
-    let problem =
-        serde_json::from_str(&std::fs::read_to_string("../problem_1730299110063.json").unwrap())
-            .unwrap();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../problem_1730299110063.json").unwrap()).unwrap();
     let _x = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+pub fn send_plan(plan: &Plan) {
+    let mqtt_opts = paho_mqtt::CreateOptionsBuilder::new()
+        .server_uri("mqtt://localhost:1883")
+        .finalize();
+    let mqtt_cli = paho_mqtt::Client::new(mqtt_opts).unwrap();
+    let conn_opts = paho_mqtt::ConnectOptionsBuilder::new()
+        .keep_alive_interval(std::time::Duration::from_secs(20))
+        .finalize();
+    mqtt_cli.connect(conn_opts).unwrap();
+
+    mqtt_cli
+        .publish(paho_mqtt::Message::new(
+            "/survsim/plan",
+            serde_json::to_string(&plan).unwrap(),
+            1,
+        ))
+        .unwrap();
+}
+
+#[test]
+pub fn test_rp1() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../r_p1.json").unwrap()).unwrap();
+    let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    send_plan(&p);
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_rp2() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../r_p2.json").unwrap()).unwrap();
+
+    let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    send_plan(&p);
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_rd1() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../r_d1.json").unwrap()).unwrap();
+    let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    send_plan(&p);
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_rd2() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../r_d2.json").unwrap()).unwrap();
+
+    let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    send_plan(&p);
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_r41() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../r_41.json").unwrap()).unwrap();
+    let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    send_plan(&p);
+    hprof::profiler().print_timing();
+    // x.print();
+}
+
+#[test]
+pub fn test_r42() {
+    let _ = env_logger::try_init();
+    let problem = serde_json::from_str(&std::fs::read_to_string("../r_42.json").unwrap()).unwrap();
+
+    let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
+    send_plan(&p);
     hprof::profiler().print_timing();
     // x.print();
 }
@@ -123,16 +251,144 @@ pub fn solve(problem: &Problem) -> Plan {
     std::fs::write(
         format!(
             "problem_{}.json",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis()
         ),
         serde_json::to_string(&problem).unwrap(),
     )
     .unwrap();
 
     HeuristicColgenSolver::new(problem).solve_heuristic()
+}
+
+pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
+    std::fs::write(
+        format!(
+            "problem_{}.json",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis()
+        ),
+        serde_json::to_string(&problem).unwrap(),
+    )
+    .unwrap();
+
+    let (base_node, vehicle_start_nodes, mut nodes) = txgraph::build_graph(problem, 1.5 * 3600., 30);
+
+    let vehicle_start_nodes = vehicle_start_nodes
+        .into_iter()
+        .zip(problem.vehicles.iter())
+        .map(|(n, v)| (n, v.start_battery))
+        .collect::<Vec<_>>();
+
+    let mut time_steps = nodes
+        .iter()
+        .map(|x| x.state.time)
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    time_steps.sort();
+
+    let mut time_steps_vehicles = time_steps
+        .iter()
+        .map(|t| {
+            vehicle_start_nodes
+                .iter()
+                .filter(|(n, _)| *t >= nodes[*n as usize].state.time)
+                .count() as u32
+        })
+        .collect::<Vec<_>>();
+
+    let mut label_buf: Vec<TinyVec<[crate::shortest_path::Label; 20]>> =
+        nodes.iter().map(|_| Default::default()).collect();
+    let mut airborne_vehicles = problem.vehicles.iter().map(|x| x.start_airborne).collect::<Vec<_>>();
+    let mut cyc_plans: Vec<BattCycPlan> = Vec::new();
+
+    let mut time_cost: Vec<f32> = time_steps_vehicles
+        .iter()
+        .map(|n| if *n > 0 { 0.0 } else { f32::INFINITY })
+        .collect();
+
+    let mut airborne_only = true;
+
+    'add: loop {
+        let mut start_nodes = vehicle_start_nodes
+            .iter()
+            .enumerate()
+            .filter(|(i, _x)| airborne_vehicles[*i])
+            .map(|(_, x)| *x)
+            .collect::<Vec<_>>();
+        let finished_airborne = start_nodes.is_empty();
+
+        if finished_airborne && airborne_only {
+            airborne_only = false;
+        }
+
+        if !airborne_only {
+            start_nodes.push((base_node, problem.battery_capacity));
+        }
+
+        let start_nodes = start_nodes;
+
+        if let Some(solution) = plan_vehicle(
+            u32::MAX,
+            &nodes,
+            &start_nodes,
+            0.0,
+            &mut label_buf,
+            &Default::default(),
+            &time_steps,
+            &time_cost,
+        ) {
+            let plan = BattCycPlan { cost: solution.cost, path: solution.path };
+
+            println!("finished air {} plancost {}", finished_airborne, plan.cost);
+
+            if !airborne_only && plan.cost >= -5.0 {
+                if finished_airborne {
+                    break 'add;
+                } else {
+                    airborne_only = true;
+                    continue 'add;
+                }
+            }
+
+            println!(" Fixing battcyc {}", cyc_plan_info(&plan, &nodes));
+
+            if let Location::DroneInitial(v_idx) = nodes[plan.path[0] as usize].state.loc {
+                airborne_vehicles[v_idx] = false;
+
+                for (_, _, c) in nodes[plan.path[0] as usize].outgoing.iter_mut() {
+                    *c = f32::INFINITY;
+                }
+            }
+
+            let _p = hprof::enter("make fixed plan");
+            get_plan_edges_in_air(&nodes, &plan.path, &time_steps, |t_idx| {
+                let capacity = &mut time_steps_vehicles[t_idx];
+                assert!(*capacity > 0);
+                *capacity -= 1;
+                if *capacity == 0 {
+                    time_cost[t_idx] = f32::INFINITY;
+                }
+            });
+
+            // TODO put costs in a separate vector so we can iterate nodes while modifying.
+            let mut disabled_prod_nodes = Vec::new();
+            get_plan_prod_nodes(&nodes, &plan.path, |n| {
+                let production_edge = production_edge(&nodes, n as usize).unwrap();
+                disabled_prod_nodes.push((n as usize, production_edge));
+            });
+
+            for (n, e) in disabled_prod_nodes {
+                assert!(!nodes[n].outgoing[e].2.is_infinite());
+                nodes[n].outgoing[e].2 = f32::INFINITY;
+            }
+
+            cyc_plans.push(plan);
+        } else {
+            panic!("infeasible");
+        }
+    }
+
+    convert_batt_cyc_plan(problem, &nodes, cyc_plans)
 }
 
 #[derive(Debug)]
@@ -198,8 +454,7 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
 
     for plan_idx in start_time_order {
         let plan = &components[plan_idx];
-        let ((start_path_idx, end_path_idx), (start_time, end_time)) =
-            start_and_end_times[plan_idx];
+        let ((start_path_idx, end_path_idx), (start_time, end_time)) = start_and_end_times[plan_idx];
         // println!("treating plan {:?}", plan);
         let v_init = match nodes[plan.path[0] as usize].state.loc {
             Location::DroneInitial(d) => Some(d),
@@ -223,14 +478,7 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
 
         let vplan = &mut v_plans[v_idx];
 
-        assert!(vplan
-            .last_mut()
-            .unwrap()
-            .1
-            .finish_cond
-            .time
-            .unwrap()
-            .is_infinite());
+        assert!(vplan.last_mut().unwrap().1.finish_cond.time.unwrap().is_infinite());
         vplan.last_mut().unwrap().1.finish_cond.time = Some(start_time as f32);
 
         for (n1, n2) in plan.path[start_path_idx..end_path_idx]
@@ -259,8 +507,7 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
                         PlanTask {
                             task: Task::GotoPoi(t),
                             finish_cond: Cond::external(
-                                ((s2.state.time - s1.state.time) as f32 - problem.t_takeoff)
-                                    .max(0.0),
+                                ((s2.state.time - s1.state.time) as f32 - problem.t_takeoff).max(0.0),
                             ),
                         },
                     ));
@@ -274,15 +521,13 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
                         },
                     ));
                 }
-                (Location::DroneInitial(_), Location::SinkNode)
-                | (Location::Task(_), Location::SinkNode) => {
+                (Location::DroneInitial(_), Location::SinkNode) | (Location::Task(_), Location::SinkNode) => {
                     vplan.push((
                         s1.state.time,
                         PlanTask {
                             task: Task::ApproachBase,
                             finish_cond: Cond::external(
-                                ((s2.state.time - s1.state.time) as f32 - problem.t_takeoff)
-                                    .max(0.0),
+                                ((s2.state.time - s1.state.time) as f32 - problem.t_takeoff).max(0.0),
                             ),
                         },
                     ));
@@ -339,10 +584,7 @@ fn convert_batt_cyc_plan(problem: &Problem, nodes: &[Node], components: Vec<Batt
     for (v_idx, vplan) in v_plans.iter().enumerate() {
         for (task_idx, (time, task)) in vplan.iter().enumerate() {
             if let Task::WatchPoi(t) = &task.task {
-                poi_watchers
-                    .get_mut(t)
-                    .unwrap()
-                    .push((*time, v_idx, task_idx));
+                poi_watchers.get_mut(t).unwrap().push((*time, v_idx, task_idx));
             }
         }
     }
@@ -405,8 +647,7 @@ fn cyc_start_end(plan: &BattCycPlan, nodes: &[Node]) -> ((usize, usize), (i32, i
 
 impl<'a> HeuristicColgenSolver<'a> {
     pub fn new(problem: &'a Problem) -> Self {
-        let (base_node, vehicle_start_nodes, nodes) =
-            txgraph::build_graph(problem, 1.5 * 3600., 30);
+        let (base_node, vehicle_start_nodes, nodes) = txgraph::build_graph(problem, 1.5 * 3600., 30);
 
         let vehicle_start_nodes = vehicle_start_nodes
             .into_iter()
@@ -476,10 +717,7 @@ impl<'a> HeuristicColgenSolver<'a> {
 
     fn generate_trivial_init_columns(&mut self) {
         for (node, _batt) in self.vehicle_start_nodes.clone().iter() {
-            if !matches!(
-                self.nodes[*node as usize].state.loc,
-                Location::DroneInitial(_)
-            ) {
+            if !matches!(self.nodes[*node as usize].state.loc, Location::DroneInitial(_)) {
                 continue;
             }
 
@@ -520,10 +758,7 @@ impl<'a> HeuristicColgenSolver<'a> {
         let time_cost = self.time_steps.iter().map(|_| 0.0).collect::<Vec<f32>>();
 
         for (v_idx, (node, batt)) in self.vehicle_start_nodes.clone().iter().enumerate() {
-            if !matches!(
-                self.nodes[*node as usize].state.loc,
-                Location::DroneInitial(_)
-            ) {
+            if !matches!(self.nodes[*node as usize].state.loc, Location::DroneInitial(_)) {
                 continue;
             }
 
@@ -539,17 +774,15 @@ impl<'a> HeuristicColgenSolver<'a> {
             )
             .unwrap();
 
-            let new_plan = BattCycPlan {
-                cost: solution.cost,
-                path: solution.path,
-            };
+            let new_plan = BattCycPlan { cost: solution.cost, path: solution.path };
             println!(
                 " Added initial column for vehicle{} {}",
                 v_idx,
                 cyc_plan_info(&new_plan, &self.nodes)
             );
 
-            self.make_fixed_plan(new_plan);
+            // self.make_fixed_plan(new_plan);
+            self.fixed_plans.push(new_plan);
         }
     }
 
@@ -567,12 +800,8 @@ impl<'a> HeuristicColgenSolver<'a> {
             .iter()
             .enumerate()
             .map(|(v_idx, v)| {
-                (!self.fixed_vehicle_starts[v_idx] && v.start_airborne).then(|| {
-                    (
-                        self.vehicle_start_nodes[v_idx].0,
-                        rmp.add_empty_constr(1.0, rmp.inf()),
-                    )
-                })
+                (!self.fixed_vehicle_starts[v_idx] && v.start_airborne)
+                    .then(|| (self.vehicle_start_nodes[v_idx].0, rmp.add_empty_constr(1.0, rmp.inf())))
             })
             .collect::<Vec<Option<(u32, u32)>>>();
         shadow_prices.extend(init_nodes_cstrs.iter().filter(|x| x.is_some()).map(|_| 0.0));
@@ -598,12 +827,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                     .map(|e| (e, rmp.add_empty_constr(0.0, 1.0)))
             })
             .collect::<Vec<Option<_>>>();
-        shadow_prices.extend(
-            production_capacity
-                .iter()
-                .filter(|x| x.is_some())
-                .map(|_| 0.0),
-        );
+        shadow_prices.extend(production_capacity.iter().filter(|x| x.is_some()).map(|_| 0.0));
 
         #[derive(Debug)]
         struct CurrentBest {
@@ -615,11 +839,7 @@ impl<'a> HeuristicColgenSolver<'a> {
         let mut solution_buf: Vec<f64> = Default::default();
         let mut n_iterations = 0;
         let mut n_columns = 0;
-        let mut current_best = CurrentBest {
-            column: usize::MAX,
-            n_iter: 0,
-            value: 0.0,
-        };
+        let mut current_best = CurrentBest { column: usize::MAX, n_iter: 0, value: 0.0 };
 
         let mut col_index: HashMap<Vec<u32>, usize> = Default::default();
         let mut col_index2: HashMap<String, usize> = Default::default();
@@ -673,14 +893,13 @@ impl<'a> HeuristicColgenSolver<'a> {
                     &solution.path,
                 );
 
-                let col_idx2 =
-                    rmp.add_column(solution.cost as f64, &self.idxs_buf, &self.coeffs_buf);
+                let col_idx2 = rmp.add_column(solution.cost as f64, &self.idxs_buf, &self.coeffs_buf);
                 assert!(n_columns == col_idx2 as usize);
                 n_columns += 1;
                 // }
             }
 
-            // rmp.write_model();
+            rmp.write_model();
             // panic!("ok");
 
             let micro_obj = rmp.optimize(&mut [], &mut []).unwrap() as f32;
@@ -706,24 +925,30 @@ impl<'a> HeuristicColgenSolver<'a> {
             }
             rmp.get_solution(&mut solution_buf);
             println!("solution {:?}", &solution_buf[..solution_buf.len().min(20)]);
-
-            if let Some((_best_col, best_value)) = solution_buf
+            let col_ranking_cost = solution_buf
                 .iter()
                 .enumerate()
-                .max_by_key(|(i, x)| OrderedFloat(**x))
-            {
-                let (best_col, best_value) = solution_buf
-                    .iter()
-                    .enumerate()
-                    .filter(|(_i, x)| **x + STILL_BEST_VALUE_TOLERANCE >= *best_value)
-                    .min_by_key(|(i, x)| OrderedFloat(self.columns[*i].cost as f64 * (**x)))
-                    .unwrap();
+                .map(|(i, x)| {
+                    OrderedFloat(if *x < 0.01 {
+                        f64::INFINITY
+                    } else {
+                        self.columns[i].cost as f64 * x
+                    })
+                })
+                .collect::<Vec<_>>();
+            println!("COL RANKING {:?}", col_ranking_cost);
 
-                println!("BEST {}<{} {}", best_col, self.columns.len(), best_value);
+            if let Some((best_col, best_value)) = col_ranking_cost.iter().enumerate().min_by_key(|(_i, x)| **x) {
+                println!(
+                    "BEST {}<{} {}   (costs {:?})",
+                    best_col,
+                    self.columns.len(),
+                    best_value,
+                    self.columns.iter().map(|c| c.cost).collect::<Vec<_>>()
+                );
                 if current_best.column < self.columns.len()
                     && (current_best.column == best_col
-                        || solution_buf[current_best.column] + STILL_BEST_VALUE_TOLERANCE
-                            >= *best_value)
+                        || col_ranking_cost[current_best.column] * (1.0 - STILL_BEST_VALUE_TOLERANCE) <= *best_value)
                 {
                     current_best.n_iter += 1;
 
@@ -741,11 +966,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                     }
                 } else {
                     assert!(current_best.column != best_col);
-                    current_best = CurrentBest {
-                        column: best_col,
-                        value: *best_value,
-                        n_iter: 1,
-                    };
+                    current_best = CurrentBest { column: best_col, value: best_value.0, n_iter: 1 };
                 }
 
                 if n_iterations >= MAX_ITERS {
@@ -773,10 +994,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 .enumerate()
                 .filter(|(i, _x)| !self.fixed_vehicle_starts[*i])
                 .map(|(_, x)| *x)
-                .chain(std::iter::once((
-                    self.base_node,
-                    self.problem.battery_capacity,
-                )))
+                .chain(std::iter::once((self.base_node, self.problem.battery_capacity)))
                 .collect::<Vec<_>>();
 
             if let Some(solution) = plan_vehicle(
@@ -807,14 +1025,8 @@ impl<'a> HeuristicColgenSolver<'a> {
                     }
                 }
 
-                let new_plan = BattCycPlan {
-                    cost: solution.cost,
-                    path: solution.path,
-                };
-                println!(
-                    " Added new column {}",
-                    cyc_plan_info(&new_plan, &self.nodes)
-                );
+                let new_plan = BattCycPlan { cost: solution.cost, path: solution.path };
+                println!(" Added new column {}", cyc_plan_info(&new_plan, &self.nodes));
                 self.columns.push(new_plan);
             } else {
                 // Infeasible subproblem. That shouldn't happen (starting and

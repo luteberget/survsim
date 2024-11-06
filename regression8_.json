@@ -1,0 +1,217 @@
+{
+    "t_takeoff": 5.0,
+    "battery_capacity": 1.0,
+    "vehicles": [
+        {
+            "start_battery": 0.3046033,
+            "start_airborne": true,
+            "start_time": 0.0
+        },
+        {
+            "start_battery": 0.2797964,
+            "start_airborne": true,
+            "start_time": 0.0
+        },
+        {
+            "start_battery": 0.9129242,
+            "start_airborne": true,
+            "start_time": 0.0
+        }
+    ],
+    "pois": [
+        {
+            "task_ref": {
+                "FixedTask": 0
+            },
+            "reward_rate": 1.0,
+            "battery_rate": 0.00037
+        },
+        {
+            "task_ref": {
+                "FixedTask": 1
+            },
+            "reward_rate": 1.0,
+            "battery_rate": 0.00037
+        }
+    ],
+    "distances": [
+        [
+            [
+                "Base",
+                {
+                    "Task": {
+                        "FixedTask": 0
+                    }
+                }
+            ],
+            {
+                "dt": 204.38391,
+                "d_batt": 0.2248223
+            }
+        ],
+        [
+            [
+                {
+                    "Task": {
+                        "FixedTask": 0
+                    }
+                },
+                {
+                    "Task": {
+                        "FixedTask": 1
+                    }
+                }
+            ],
+            {
+                "dt": 191.71602,
+                "d_batt": 0.21088763
+            }
+        ],
+        [
+            [
+                "Base",
+                {
+                    "Task": {
+                        "FixedTask": 1
+                    }
+                }
+            ],
+            {
+                "dt": 238.11885,
+                "d_batt": 0.26193073
+            }
+        ],
+        [
+            [
+                "Base",
+                {
+                    "DroneInitial": 0
+                }
+            ],
+            {
+                "dt": 204.38391,
+                "d_batt": 0.2248223
+            }
+        ],
+        [
+            [
+                {
+                    "Task": {
+                        "FixedTask": 0
+                    }
+                },
+                {
+                    "DroneInitial": 0
+                }
+            ],
+            {
+                "dt": 0.0,
+                "d_batt": 0.0
+            }
+        ],
+        [
+            [
+                {
+                    "Task": {
+                        "FixedTask": 1
+                    }
+                },
+                {
+                    "DroneInitial": 0
+                }
+            ],
+            {
+                "dt": 191.71602,
+                "d_batt": 0.21088763
+            }
+        ],
+        [
+            [
+                "Base",
+                {
+                    "DroneInitial": 1
+                }
+            ],
+            {
+                "dt": 238.11885,
+                "d_batt": 0.26193073
+            }
+        ],
+        [
+            [
+                {
+                    "Task": {
+                        "FixedTask": 0
+                    }
+                },
+                {
+                    "DroneInitial": 1
+                }
+            ],
+            {
+                "dt": 191.71602,
+                "d_batt": 0.21088763
+            }
+        ],
+        [
+            [
+                {
+                    "Task": {
+                        "FixedTask": 1
+                    }
+                },
+                {
+                    "DroneInitial": 1
+                }
+            ],
+            {
+                "dt": 0.0,
+                "d_batt": 0.0
+            }
+        ],
+        [
+            [
+                "Base",
+                {
+                    "DroneInitial": 2
+                }
+            ],
+            {
+                "dt": 6.5162954,
+                "d_batt": 0.007167925
+            }
+        ],
+        [
+            [
+                {
+                    "Task": {
+                        "FixedTask": 0
+                    }
+                },
+                {
+                    "DroneInitial": 2
+                }
+            ],
+            {
+                "dt": 197.91377,
+                "d_batt": 0.21770515
+            }
+        ],
+        [
+            [
+                {
+                    "Task": {
+                        "FixedTask": 1
+                    }
+                },
+                {
+                    "DroneInitial": 2
+                }
+            ],
+            {
+                "dt": 234.07007,
+                "d_batt": 0.25747707
+            }
+        ]
+    ]
+}

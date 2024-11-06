@@ -183,14 +183,16 @@ impl Backend for SurvsimBackend {
             None => return false,
         };
 
-        let task = match self.curr_drone_task[v_idx].as_ref() {
-            Some(t) => &t.task,
-            None => return false,
-        };
+        // TODO: the ATAM MASIM needs to finish all takeoffs.
 
-        if matches!(task, Task::Takeoff(_) | Task::Land) {
-            panic!("cannot cancel takeoff/landing");
-        }
+        // let task = match self.curr_drone_task[v_idx].as_ref() {
+        //     Some(t) => &t.task,
+        //     None => return false,
+        // };
+
+        // if matches!(task, Task::Takeoff(_) | Task::Land) {
+        //     panic!("cannot cancel takeoff/landing");
+        // }
 
         self.curr_drone_task[v_idx] = None;
         true

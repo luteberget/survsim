@@ -49,7 +49,7 @@ impl LPInstance {
                 CStr::from_bytes_with_nul("output_flag\0".as_bytes())
                     .unwrap()
                     .as_ptr(),
-                1,
+                0,
             )
         };
         // unsafe {

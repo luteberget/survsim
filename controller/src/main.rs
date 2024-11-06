@@ -10,7 +10,7 @@ pub mod executive;
 pub mod parse_report;
 
 fn main() {
-    let mut planner: Planner = Box::new(survsim_planner::colgen::solve);
+    let mut planner: Planner = Box::new(survsim_planner::colgen::solve_greedy_cycles);
     let mut executive = Executive::new(&mut planner);
     SurvsimBackend::new().main_loop(|backend| executive.update(backend));
 }

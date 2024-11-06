@@ -1,3 +1,4 @@
+#![deny(clippy::print_stdout)]
 use std::collections::BTreeSet;
 
 use log::{debug, trace};
@@ -241,7 +242,7 @@ pub fn plan_vehicle(
     let _p2 = hprof::enter("reconstruct path");
 
     // The problem should never be infeasible.
-    debug!("BEST {:?}", best);
+    println!("BEST {:?}", best);
 
     let (cost_including_shadow_price, mut node_idx, mut label_idx) = best?;
     let mut cost: f32 = 0.0;
@@ -274,7 +275,8 @@ pub fn plan_vehicle(
             label.remaining_battery
         } + edge.1.batt;
 
-        let required_batt = 0.999 * required_batt;
+        // Tolerance on battery label matching.
+        let required_batt = required_batt - (0.001 * required_batt).abs();
 
         trace!(
             "req_batt {} prevlabels {:?}",
