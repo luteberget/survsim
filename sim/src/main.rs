@@ -69,7 +69,8 @@ impl World {
         }
     }
 
-    pub fn medium() -> World {
+
+    pub fn medium2() -> World {
         // Default hard-coded scenario setup
 
         let base_air = Point { x: 180.0, y: 600.0 - 540.0, z: 0.0 };
@@ -146,6 +147,85 @@ impl World {
         World { curr_time: 0.0, fixed_tasks, drones, contacts }
     }
 
+
+
+    pub fn medium() -> World {
+        // Default hard-coded scenario setup
+
+        let base_air = Point { x: 180.0, y: 600.0 - 540.0, z: 0.0 };
+        let base_ground = Point { z: -50.0, ..base_air };
+
+        let fixed_tasks = vec![
+            FixedTaskState { loc: Point { x: 66.0, y: 600.0 - 300.0, z: 0.0 } },
+            FixedTaskState { loc: Point { x: 312.0, y: 600.0 - 260.0, z: 0.0 } },
+            FixedTaskState { loc: Point { x: 543.0, y: 600.0 - 350.0, z: 0.0 } },
+            FixedTaskState { loc: Point { x: 666.0, y: 600.0 - 533.0, z: 0.0 } },
+        ];
+
+        // let fixed_dists = FixedDists {
+        //     fixed_task_base_dist: fixed_tasks
+        //         .iter()
+        //         .map(|p| p.loc.dist(&base_ground))
+        //         .collect(),
+        //     fixed_task_dists: (0..fixed_tasks.len())
+        //         .map(|i| {
+        //             (0..fixed_tasks.len())
+        //                 .map(|j| fixed_tasks[i].loc.dist(&fixed_tasks[j].loc))
+        //                 .collect()
+        //         })
+        //         .collect(),
+        // };
+
+        let p1 = vec![
+            Point { x: 53.0, y: 600.0 - 25.0, z: 0.0 },
+            Point { x: 118.0, y: 600.0 - 350.0, z: 0.0 },
+        ];
+        let p2 = vec![
+            Point { x: 350.0, y: 600.0 - 25.0, z: 0.0 },
+            Point { x: 470.0, y: 600.0 - 50.0, z: 0.0 },
+            Point { x: 370.0, y: 600.0 - 320.0, z: 0.0 },
+        ];
+        let p3 = vec![
+            Point { x: 566.0, y: 600.0 - 75.0, z: 0.0 },
+            Point { x: 560.0, y: 600.0 - 400.0, z: 0.0 },
+        ];
+        let contacts = vec![
+            ContactState {
+                waypoints: p1.clone(),
+                curr_waypoint: 0,
+                curr_loc: p1[0],
+                velocity: 0.5,
+            },
+            ContactState {
+                waypoints: p2.clone(),
+                curr_waypoint: 0,
+                curr_loc: p2[0],
+                velocity: 0.5,
+            },
+            ContactState {
+                waypoints: p3.clone(),
+                curr_waypoint: 0,
+                curr_loc: p3[0],
+                velocity: 0.5,
+            },
+        ];
+
+        let drones = (0..6)
+            .map(|_| DroneState {
+                base_air,
+                base_ground,
+                battery_consumption_hovering: 0.00037*0.75, // 45 minutes on full battery
+                battery_consumption_traveling: 0.0011*0.75, // 15 minutes on full battery
+                battery_level: 1.0,
+                curr_loc: base_ground,
+                goal: Goal::Wait,
+                velocity: 1.3,
+            })
+            .collect();
+
+        World { curr_time: 0.0, fixed_tasks, drones, contacts }
+    }
+
     pub fn small() -> World {
         // Default hard-coded scenario setup
 
@@ -171,7 +251,7 @@ impl World {
             // },
         ];
 
-        let drones = (0..3)
+        let drones = (0..5)
             .map(|_| DroneState {
                 base_air,
                 base_ground,

@@ -25,6 +25,27 @@ pub struct SurvsimBackend {
     current_time: f32,
 }
 
+fn next_msg_skip_old(c: &paho_mqtt::Receiver<Option<paho_mqtt::Message>>) -> Option<paho_mqtt::Message> {
+    let mut msg = loop {
+        match c.recv() {
+            Ok(Some(x)) => break x,
+            Ok(None) => {
+                continue;
+            }
+            Err(_) => {
+                return None;
+            }
+        }
+    };
+
+    // overwrite with later messages if there are some waiting
+    while let Ok(Some(newer_msg)) = c.try_recv() {
+        msg = newer_msg;
+    }
+
+    Some(msg)
+}
+
 impl SurvsimBackend {
     pub fn new() -> Self {
         Self {
@@ -53,21 +74,19 @@ impl SurvsimBackend {
 
         let mut first = true;
         loop {
-            let new_report = match mqtt_rx.recv() {
-                Ok(Some(msg)) => {
-                    if first {
-                        println!("Recevied first report");
-                        first = false;
-                    }
-                    serde_json::from_slice::<Report>(msg.payload_str().as_bytes()).unwrap()
-                }
-                Ok(None) => {
-                    continue;
-                }
-                Err(_) => {
+            let msg = match next_msg_skip_old(&mqtt_rx) {
+                Some(x) => x,
+                None => {
                     break;
                 }
             };
+
+            if first {
+                println!("Recevied first report");
+                first = false;
+            }
+            let new_report =
+                serde_json::from_slice::<Report>(msg.payload_str().as_bytes()).unwrap();
 
             self.current_time = new_report.current_time;
 
