@@ -1,4 +1,3 @@
-use core::f32;
 
 use backend::SurvsimBackend;
 use executive::Executive;
@@ -10,7 +9,7 @@ pub mod executive;
 pub mod parse_report;
 
 fn main() {
-    let mut planner: Planner = Box::new(survsim_planner::colgen::solve_greedy_cycles);
+    let mut planner: Planner = Box::new(survsim_planner::greedy::solve_greedy_cycles);
     let mut executive = Executive::new(&mut planner);
     SurvsimBackend::new().main_loop(|backend| executive.update(backend));
 }

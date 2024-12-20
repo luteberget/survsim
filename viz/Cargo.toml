@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-eframe = "0.29.1"
-egui_plot = "0.29.0"
-paho-mqtt = "0.12.5"
-serde_json = "1.0.128"
+eframe = "0.30"
+egui_plot = "0.30"
 survsim_structs = { path = "../structs" }

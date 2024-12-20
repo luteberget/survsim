@@ -1,4 +1,5 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
+#![cfg(feature="gbfs")]
 
 use std::collections::BTreeSet;
 

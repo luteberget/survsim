@@ -1,0 +1,13 @@
+[package]
+name = "mqtt_exes"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+paho-mqtt = { version = "0.12.5", features = ["bundled"] }
+survsim_structs = { path = "../structs" }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+survsim_sim = { path = "../sim" }
+survsim_viz = { path = "../viz" }
+eframe = "0.30"

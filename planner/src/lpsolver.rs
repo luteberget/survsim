@@ -1,3 +1,5 @@
+#![cfg(feature="highs")]
+
 use std::ffi::{c_void, CStr};
 
 pub struct LPInstance {
