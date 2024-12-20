@@ -68,7 +68,7 @@ fn worker_new(name: &str) -> web_sys::Worker {
 
     let script = js_sys::Array::new();
     script.push(
-        &format!(r#"importScripts("{origin}/{name}.js");wasm_bindgen("{origin}/{name}_bg.wasm");"#)
+        &format!(r#"importScripts("{origin}/survsim/{name}.js");wasm_bindgen("{origin}/survsim/{name}_bg.wasm");"#)
             .into(),
     );
 
