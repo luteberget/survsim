@@ -4,7 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-paho-mqtt = "0.12.5"
-serde_json = "1.0.128"
 survsim_structs = { path = "../structs" }
-survsim_planner = { path = "../planner" }
+survsim_planner = { path = "../planner", default-features=false }

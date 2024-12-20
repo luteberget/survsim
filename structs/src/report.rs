@@ -25,11 +25,13 @@ pub struct DistanceList {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone)]
 pub struct FixedTaskReport {
     pub loc: Point,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone)]
 pub struct ContactReport {
     pub loc: Point,
     pub in_sight: bool,

@@ -6,7 +6,7 @@ use egui_plot::Polygon;
 use survsim_structs::{backend::Task, plan::Plan, report::Report, Goal, TaskRef};
 
 
-pub fn draw_map_and_plan(ui: &mut egui::Ui, plan: &Option<Plan>, report: &Option<Report>) {
+pub fn draw_map_and_plan(ui: &mut egui::Ui, plan: Option<&Plan>, report: Option<&Report>) {
     egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
         if let Some(plan) = plan {
             draw_plan(ui, plan, "plan");

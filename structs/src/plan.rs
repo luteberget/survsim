@@ -4,7 +4,7 @@ use crate::{backend::Task, problem::Problem};
 
 pub type Planner = Box<dyn FnMut(&Problem) -> Plan>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(Serialize, Deserialize)]
 pub struct Plan {
     pub vehicle_tasks: Vec<Vec<PlanTask>>,

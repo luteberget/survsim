@@ -47,9 +47,8 @@ impl eframe::App for MyApp {
                 }
             });
 
-            let plan = &self.plan;
-            let report = &self.report;
-
+            let plan = self.plan.as_ref();
+            let report = self.report.as_ref();
 
             survsim_viz::draw_map_and_plan(ui, plan, report);
         });

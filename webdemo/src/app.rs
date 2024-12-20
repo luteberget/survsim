@@ -1,102 +1,48 @@
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
-pub struct TemplateApp {
-    // Example stuff:
-    label: String,
+use std::{cell::RefCell, rc::Rc};
 
-    value: f32,
+use survsim_structs::{plan::Plan, report::Report, GoalMsg};
+
+pub struct SurvSimApp {
+    simulator: survsim_sim::World,
+    last_updated: web_time::Instant,
+    plan: Rc<RefCell<Option<Plan>>>,
+    pending_msgs: Rc<RefCell<Vec<GoalMsg>>>,
+    publish_report: Box<dyn FnMut(&Report)>,
 }
 
-impl Default for TemplateApp {
-    fn default() -> Self {
-        Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
+impl SurvSimApp {
+    /// Called once before the first frame.
+    pub fn new(
+        _cc: &eframe::CreationContext<'_>,
+        plan: Rc<RefCell<Option<Plan>>>,
+        pending_msgs: Rc<RefCell<Vec<GoalMsg>>>,
+        publish_report: Box<dyn FnMut(&Report)>,
+    ) -> Self {
+        SurvSimApp {
+            simulator: survsim_sim::World::default(),
+            last_updated: web_time::Instant::now(),
+            plan,
+            pending_msgs,
+            publish_report,
         }
     }
 }
 
-impl TemplateApp {
-    /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // // Load previous app state (if any).
-        // // Note that you must enable the `persistence` feature for this to work.
-        // if let Some(storage) = cc.storage {
-        //     return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        // }
-
-        Default::default()
-    }
-}
-
-impl eframe::App for TemplateApp {
-
-    /// Called each time the UI needs repainting, which may be many times per second.
+impl eframe::App for SurvSimApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
+        ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        let time_factor = 10.0;
+        let sim_dt = time_factor * self.last_updated.elapsed().as_secs_f32();
+        self.last_updated = web_time::Instant::now();
+        let report = self.simulator.simulate(sim_dt);
+        (self.publish_report)(&report);
+        for goal_msg in self.pending_msgs.borrow_mut().drain(..) {
+            self.simulator.drones[goal_msg.drone].goal = goal_msg.goal;
+        }
+        let current_plan = self.plan.borrow();
 
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-
-            egui::menu::bar(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-
-                egui::widgets::global_theme_preference_buttons(ui);
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
-
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
-
-            ui.separator();
-
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
-            });
+        let plan = egui::CentralPanel::default().show(ctx, |ui| {
+            survsim_viz::draw_map_and_plan(ui, current_plan.as_ref(), Some(&report));
         });
     }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
 }

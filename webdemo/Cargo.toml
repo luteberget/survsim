@@ -11,6 +11,14 @@ eframe = { version = "0.30", default-features = false, features = [
     "x11"
 ] }
 log = "0.4"
+survsim_structs = { path = "../structs" }
+survsim_sim = { path = "../sim" }
+survsim_viz = { path = "../viz" }
+survsim_controller = { path = "../controller" }
+survsim_planner = { path = "../planner", default-features = false }
+web-time = "1.1.0"
+serde = { version = "1.0.216", features = ["derive"] }
+serde_json = "1.0.133"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.11"

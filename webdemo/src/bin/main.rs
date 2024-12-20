@@ -23,7 +23,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "survsim web demo",
         native_options,
-        Box::new(|cc| Ok(Box::new(survsim_webdemo::TemplateApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(survsim_webdemo::SurvSimApp::new(cc)))),
     )
 }
 
@@ -36,9 +36,6 @@ fn main() -> eframe::Result {
 //         gloo_timers::future::TimeoutFuture::new(0).await;
 //     }
 // }
-
-
-
 
 // async fn compute() {
 //     console::log_1(&JsValue::from_str("COMPUTE"));
@@ -61,7 +58,6 @@ fn main() -> eframe::Result {
 //     console::log_1(&JsValue::from_str("hallo"));
 //     console::log_1(&x);
 // }
-
 
 fn worker_new(name: &str) -> web_sys::Worker {
     let origin = web_sys::window()
@@ -90,7 +86,11 @@ fn worker_new(name: &str) -> web_sys::Worker {
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 fn main() {
+    use std::{cell::RefCell, rc::Rc};
+
     use eframe::wasm_bindgen::JsCast as _;
+    use survsim_structs::{plan::Plan, report::Report, GoalMsg};
+    use survsim_webdemo::WorkerResultMessage;
 
     // Redirect `log` message to `console.log` and friends:
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
@@ -98,39 +98,36 @@ fn main() {
     let web_options = eframe::WebOptions::default();
 
     let worker = worker_new("worker");
-    let worker_clone = worker.clone();
 
-    let onmessage = js_sys::wasm_bindgen::prelude::Closure::wrap(Box::new(move |msg: web_sys::MessageEvent| {
-        let worker_clone = worker_clone.clone();
-        let data = js_sys::Array::from(&msg.data());
+    let plan: Rc<RefCell<Option<Plan>>> = Rc::new(RefCell::new(None));
+    let pending_msgs: Rc<RefCell<Vec<GoalMsg>>> = Rc::new(RefCell::new(Vec::new()));
 
-        if data.length() == 0 {
-            let msg = js_sys::Array::new();
-            msg.push(&2.into());
-            msg.push(&5.into());
-            worker_clone
-                .post_message(&msg.into())
-                .expect("sending message to succeed");
-        } else {
-            let a = data
-                .get(0)
-                .as_f64()
-                .expect("first array value to be a number") as u32;
-            let b = data
-                .get(1)
-                .as_f64()
-                .expect("second array value to be a number") as u32;
-            let result = data
-                .get(2)
-                .as_f64()
-                .expect("third array value to be a number") as u32;
-
-            web_sys::console::log_1(&format!("{a} x {b} = {result}").into());
-        }
-    }) as Box<dyn Fn(web_sys::MessageEvent)>);
+    let plan_in_onmessage = plan.clone();
+    let pending_msgs_in_onmessage = pending_msgs.clone();
+    let onmessage =
+        js_sys::wasm_bindgen::prelude::Closure::wrap(Box::new(move |msg: web_sys::MessageEvent| {
+            let data_str = msg.data().as_string().unwrap();
+            let message: WorkerResultMessage = serde_json::from_str(&data_str).unwrap();
+            match message {
+                WorkerResultMessage::Plan(plan) => {
+                    web_sys::console::log_1(&"received plan".into());
+                    *plan_in_onmessage.borrow_mut() = Some(plan);
+                }
+                WorkerResultMessage::Goal(goal_msg) => {
+                    web_sys::console::log_1(&"received goal".into());
+                    pending_msgs_in_onmessage.borrow_mut().push(goal_msg)
+                }
+            };
+        })
+            as Box<dyn Fn(web_sys::MessageEvent)>);
     worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
     onmessage.forget();
 
+    let mk_report: Box<dyn FnMut(&Report)> = Box::new(move |r| {
+        worker
+            .post_message(&serde_json::to_string(&r).unwrap().into())
+            .expect("posting result message succeeds");
+    });
 
     wasm_bindgen_futures::spawn_local(async {
         let document = web_sys::window()
@@ -148,7 +145,14 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(survsim_webdemo::TemplateApp::new(cc)))),
+                Box::new(|cc| {
+                    Ok(Box::new(survsim_webdemo::SurvSimApp::new(
+                        cc,
+                        plan,
+                        pending_msgs,
+                        mk_report,
+                    )))
+                }),
             )
             .await;
 

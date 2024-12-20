@@ -177,6 +177,7 @@ fn pois_transitions(
 }
 
 pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (u32, Vec<u32>, Vec<Node>) {
+    #[cfg(feature="prof")]
     let _p_graph = hprof::enter("mk_graph");
     // Create the graph
     let start_states = problem

@@ -110,6 +110,7 @@ impl LPInstance {
 
     #[allow(unused)]
     pub fn write_model(&mut self) {
+        #[cfg(feature="prof")]
         let _p = hprof::enter("write model");
         unsafe {
             highs_sys::Highs_writeModel(
@@ -158,6 +159,7 @@ impl LPInstance {
     }
 
     pub fn optimize(&mut self, var_value_out: &mut [f64], row_dual_out: &mut [f64]) -> Option<f64> {
+        #[cfg(feature="prof")]
         let _p = hprof::enter("lp optimize");
 
         let mut model_status = self.highs_solve();
@@ -184,7 +186,9 @@ impl LPInstance {
                 || model_status == Ok(HighsModelStatus::ModelEmpty)
         );
 
+        #[cfg(feature="prof")]
         drop(_p);
+        #[cfg(feature="prof")]
         let _p = hprof::enter("get_solution");
         // println!("Solved {:?} {:?}", _status, _model_status);
 

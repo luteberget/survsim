@@ -101,6 +101,7 @@ pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
                 }
             }
 
+            #[cfg(feature="prof")]
             let _p = hprof::enter("make fixed plan");
             get_plan_edges_in_air(&nodes, &plan.path, &time_steps, |t_idx| {
                 let capacity = &mut time_steps_vehicles[t_idx];

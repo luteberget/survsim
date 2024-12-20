@@ -83,7 +83,9 @@ pub fn plan_vehicle(
     time_steps: &[i32],
     time_cost: &[f32],
 ) -> Option<VehicleSolution> {
+    #[cfg(feature="prof")]
     let _p = hprof::enter("plan_vehicle");
+    #[cfg(feature="prof")]
     let _p0 = hprof::enter("plan init");
     assert!(nodes.len() == label_buf.len());
     // let final_time = nodes.last().map(|x| x.state.time);
@@ -133,8 +135,10 @@ pub fn plan_vehicle(
     let mut n_ops = 0;
     // Iterate all nodes
 
+    #[cfg(feature="prof")]
     drop(_p0);
     for (src_node_idx, node) in nodes.iter().enumerate() {
+        #[cfg(feature="prof")]
         let _pp = hprof::enter("node");
         trace!("Searching from node {} {:?}", src_node_idx, node.state);
         if
@@ -239,6 +243,7 @@ pub fn plan_vehicle(
             }
         }
     }
+    #[cfg(feature="prof")]
     let _p2 = hprof::enter("reconstruct path");
 
     // The problem should never be infeasible.

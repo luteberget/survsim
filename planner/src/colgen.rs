@@ -1,3 +1,5 @@
+#![cfg(feature="highs")]
+
 use core::f32;
 use ordered_float::OrderedFloat;
 use std::{
@@ -85,6 +87,7 @@ impl<'a> HeuristicColgenSolver<'a> {
         vehicle_start_nodes: Vec<(u32, f32)>,
         time_steps: Vec<i32>,
     ) -> Self {
+        #[cfg(feature="prof")]
         let _p: hprof::ProfileGuard<'_> = hprof::enter("colgen new");
 
         let time_steps_vehicles = time_steps
@@ -188,7 +191,9 @@ impl<'a> HeuristicColgenSolver<'a> {
     }
 
     fn colgen_fix_one(&mut self) -> Option<usize> {
+        #[cfg(feature="prof")]
         let _p = hprof::enter("colgen_fix_one");
+        #[cfg(feature="prof")]
         let _p2 = hprof::enter("lp rebuild");
         let mut rmp = crate::lpsolver::LPInstance::new();
         let mut shadow_prices: Vec<f64> = Default::default();
@@ -245,6 +250,7 @@ impl<'a> HeuristicColgenSolver<'a> {
         let mut col_index: HashMap<Vec<u32>, usize> = Default::default();
         let mut col_index2: HashMap<String, usize> = Default::default();
 
+        #[cfg(feature="prof")]
         drop(_p2);
 
         let macro_obj = self.fixed_plans.iter().map(|c| c.cost).sum::<f32>();
@@ -320,6 +326,7 @@ impl<'a> HeuristicColgenSolver<'a> {
             const STILL_BEST_ITERS: usize = 1;
             const MAX_ITERS: usize = 1;
 
+            #[cfg(feature="prof")]
             let _p2 = hprof::enter("colgen iter after lp");
             while self.columns.len() > solution_buf.len() {
                 solution_buf.push(Default::default());
@@ -438,6 +445,7 @@ impl<'a> HeuristicColgenSolver<'a> {
     }
 
     pub fn solve_heuristic(mut self) -> Plan {
+        #[cfg(feature="prof")]
         let _p = hprof::enter("solve_heuristic");
         while let Some(col_idx) = self.colgen_fix_one() {
             let plan = self.columns.swap_remove(col_idx);
@@ -473,6 +481,7 @@ impl<'a> HeuristicColgenSolver<'a> {
             }
         }
 
+        #[cfg(feature="prof")]
         let _p = hprof::enter("make fixed plan");
         get_plan_edges_in_air(&self.nodes, &plan.path, &self.time_steps, |t_idx| {
             let capacity = &mut self.time_steps_vehicles[t_idx];
@@ -492,6 +501,7 @@ impl<'a> HeuristicColgenSolver<'a> {
             self.nodes[n].outgoing[e].2 = f32::INFINITY;
         }
 
+        #[cfg(feature="prof")]
         let _p2 = hprof::enter("remove rest of columns");
         // Check the rest of the columns for overlaps
         self.columns.retain(|c| {

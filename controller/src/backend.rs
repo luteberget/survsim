@@ -25,27 +25,6 @@ pub struct SurvsimBackend {
     current_time: f32,
 }
 
-fn next_msg_skip_old(c: &paho_mqtt::Receiver<Option<paho_mqtt::Message>>) -> Option<paho_mqtt::Message> {
-    let mut msg = loop {
-        match c.recv() {
-            Ok(Some(x)) => break x,
-            Ok(None) => {
-                continue;
-            }
-            Err(_) => {
-                return None;
-            }
-        }
-    };
-
-    // overwrite with later messages if there are some waiting
-    while let Ok(Some(newer_msg)) = c.try_recv() {
-        msg = newer_msg;
-    }
-
-    Some(msg)
-}
-
 impl SurvsimBackend {
     pub fn new() -> Self {
         Self {
@@ -59,80 +38,51 @@ impl SurvsimBackend {
         }
     }
 
-    pub fn main_loop(mut self, mut callback: impl FnMut(&mut dyn Backend)) {
-        println!("connecting");
-        let mqtt_opts = paho_mqtt::CreateOptionsBuilder::new()
-            .server_uri("mqtt://localhost:1883")
-            .finalize();
-        let mqtt_cli = paho_mqtt::Client::new(mqtt_opts).unwrap();
-        let conn_opts = paho_mqtt::ConnectOptionsBuilder::new()
-            .keep_alive_interval(std::time::Duration::from_secs(20))
-            .finalize();
-        mqtt_cli.connect(conn_opts).unwrap();
-        mqtt_cli.subscribe("/survsim/state", 1).unwrap();
-        let mqtt_rx = mqtt_cli.start_consuming();
+    pub fn set_report(
+        &mut self,
+        new_report: Report,
+        
+    ) {
+        self.current_time = new_report.current_time;
 
-        let mut first = true;
-        loop {
-            let msg = match next_msg_skip_old(&mqtt_rx) {
-                Some(x) => x,
-                None => {
-                    break;
+        while new_report.drones.len() >= self.curr_drone_task.len() {
+            self.curr_drone_task.push(None);
+        }
+
+        self.current_problem = Some(create_planning_problem(&new_report));
+        self.current_report = Some(new_report);
+        self.check_task_finished_external();
+    }
+
+    pub fn dispatch(&mut self, mut f :impl FnMut(GoalMsg)) {
+
+        // Diff and dispatch.
+        for v_idx in 0..self.curr_drone_task.len() {
+            while v_idx >= self.prev_drone_goals.len() {
+                self.prev_drone_goals.push(Goal::Wait);
+            }
+
+            let next_goal: Goal = match self.curr_drone_task[v_idx]
+                .as_ref()
+                .map(|x| x.task)
+                .unwrap_or(Task::Wait)
+            {
+                Task::Wait => Goal::Wait,
+                Task::Takeoff(task_ref) | Task::GotoPoi(task_ref) | Task::WatchPoi(task_ref) => {
+                    Goal::TaskRef(task_ref)
                 }
+                Task::ApproachBase | Task::Land => Goal::Base,
             };
 
-            if first {
-                println!("Recevied first report");
-                first = false;
-            }
-            let new_report =
-                serde_json::from_slice::<Report>(msg.payload_str().as_bytes()).unwrap();
-
-            self.current_time = new_report.current_time;
-
-            while new_report.drones.len() >= self.curr_drone_task.len() {
-                self.curr_drone_task.push(None);
-            }
-
-            self.current_problem = Some(create_planning_problem(&new_report));
-            self.current_report = Some(new_report);
-            self.check_task_finished_external();
-            callback(&mut self);
-
-            // Diff and dispatch.
-            for v_idx in 0..self.curr_drone_task.len() {
-                while v_idx >= self.prev_drone_goals.len() {
-                    self.prev_drone_goals.push(Goal::Wait);
-                }
-
-                let next_goal: Goal = match self.curr_drone_task[v_idx]
-                    .as_ref()
-                    .map(|x| x.task)
-                    .unwrap_or(Task::Wait)
-                {
-                    Task::Wait => Goal::Wait,
-                    Task::Takeoff(task_ref)
-                    | Task::GotoPoi(task_ref)
-                    | Task::WatchPoi(task_ref) => Goal::TaskRef(task_ref),
-                    Task::ApproachBase | Task::Land => Goal::Base,
+            if self.prev_drone_goals[v_idx] != next_goal {
+                let msg = GoalMsg {
+                    drone: v_idx,
+                    goal: next_goal,
                 };
+                println!("t={:.2} Dispatching {:?}", self.current_time, msg);
+                f(msg);
 
-                if self.prev_drone_goals[v_idx] != next_goal {
-                    let msg = GoalMsg {
-                        drone: v_idx,
-                        goal: next_goal,
-                    };
-                    println!("t={:.2} Dispatching {:?}", self.current_time, msg);
-                    mqtt_cli
-                        .publish(paho_mqtt::Message::new(
-                            "/survsim/goal",
-                            serde_json::to_string(&msg).unwrap(),
-                            1,
-                        ))
-                        .unwrap();
-
-                    self.prev_drone_goals[v_idx] = next_goal;
-                }
+                self.prev_drone_goals[v_idx] = next_goal;
             }
         }
     }

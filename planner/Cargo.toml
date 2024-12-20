@@ -5,13 +5,14 @@ edition = "2021"
 
 
 [features]
-default = ["highs"]
+default = ["highs", "prof"]
 highs=["dep:highs-sys"]
 gbfs=["dep:serde_json"]
+prof=["dep:hprof"]
 
 [dependencies]
 env_logger = "0.11.5"
-hprof = "0.1.3"
+hprof = {version="0.1.3", optional=true}
 log = "0.4.22"
 ordered-float = "4.3.0"
 survsim_structs = { path = "../structs" }

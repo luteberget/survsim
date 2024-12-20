@@ -23,16 +23,15 @@ struct BackendTask {
     finished: bool,
 }
 
-pub struct Executive<'a> {
-    planner: &'a mut Planner,
+pub struct Executive {
+    planner: Planner,
     state: Option<ExecutionState>,
     backend_tasks: HashMap<BackendTaskRef, BackendTask>,
     vehicle_current_task: Vec<Option<BackendTaskRef>>,
-    mqtt_cli: paho_mqtt::Client,
 }
 
-impl<'a> Executive<'a> {
-    pub fn update(&mut self, backend: &mut dyn Backend) {
+impl Executive {
+    pub fn update(&mut self, backend: &mut impl Backend) -> Plan {
         let (current_time, problem) = backend.state();
 
         // std::fs::write("regression2.json", serde_json::to_string(&problem).unwrap()).unwrap();
@@ -52,8 +51,7 @@ impl<'a> Executive<'a> {
 
         #[allow(unused_variables, clippy::nonminimal_bool)]
         let replan = if let Some(state) = self.state.as_ref() {
-            false 
-            ||current_time - state.plan_time >= 10.0
+            false || current_time - state.plan_time >= 10.0
             // || state.planned_tasks != current_tasks
         } else {
             true
@@ -83,7 +81,6 @@ impl<'a> Executive<'a> {
                 let backend_task = self.backend_tasks.get_mut(&t).unwrap();
                 assert!(!backend_task.finished);
                 backend_task.finished = true;
-                
 
                 let vehicle_plan = &mut plan.vehicle_tasks[backend_task.v_idx];
                 let is_correct_task = !vehicle_plan.is_empty()
@@ -99,7 +96,6 @@ impl<'a> Executive<'a> {
                     println!("External task finished {:?}", backend_task);
                     vehicle_plan[0].finish_cond.external = None;
                 }
-                
             }
 
             plan.update_remove_ready_tasks();
@@ -110,14 +106,17 @@ impl<'a> Executive<'a> {
 
                 let start_new_task = if let Some(old_task_ref) = self.vehicle_current_task[v_idx] {
                     let backend_task = &self.backend_tasks[&old_task_ref];
-                    if backend_task.finished || !backend_task
-                        .plan_task
-                        .task
-                        .eq_ignore_takeoff_direction(&plan_task.task)
+                    if backend_task.finished
+                        || !backend_task
+                            .plan_task
+                            .task
+                            .eq_ignore_takeoff_direction(&plan_task.task)
                     {
-
                         if !backend_task.finished {
-                            println!("cancelling v={} {:?} ----> {:?}", v_idx, backend_task.plan_task, plan_task);
+                            println!(
+                                "cancelling v={} {:?} ----> {:?}",
+                                v_idx, backend_task.plan_task, plan_task
+                            );
                             backend.end_task(old_task_ref);
                         }
                         self.backend_tasks.remove(&old_task_ref);
@@ -150,41 +149,25 @@ impl<'a> Executive<'a> {
             }
 
             break 'dispatch;
-        }
 
-        self.mqtt_cli
-            .publish(paho_mqtt::Message::new(
-                "/survsim/plan",
-                serde_json::to_string(&plan).unwrap(),
-                1,
-            ))
-            .unwrap();
+        }
 
         self.state = Some(ExecutionState {
             time: current_time,
             plan_time,
-            plan,
+            plan :plan.clone(),
             planned_tasks: current_tasks,
             // last_print,
-        })
+        });
+        plan
     }
 
-    pub fn new(planner: &'a mut Planner) -> Self {
-        let mqtt_opts = paho_mqtt::CreateOptionsBuilder::new()
-            .server_uri("mqtt://localhost:1883")
-            .finalize();
-        let mqtt_cli = paho_mqtt::Client::new(mqtt_opts).unwrap();
-        let conn_opts = paho_mqtt::ConnectOptionsBuilder::new()
-            .keep_alive_interval(std::time::Duration::from_secs(20))
-            .finalize();
-        mqtt_cli.connect(conn_opts).unwrap();
-
+    pub fn new(planner: Planner) -> Self {
         Self {
             planner,
             backend_tasks: Default::default(),
             vehicle_current_task: Default::default(),
             state: None,
-            mqtt_cli,
         }
     }
 }

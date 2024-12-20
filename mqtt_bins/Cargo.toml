@@ -4,10 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+eframe = "0.30"
 paho-mqtt = { version = "0.12.5", features = ["bundled"] }
 survsim_structs = { path = "../structs" }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 survsim_sim = { path = "../sim" }
 survsim_viz = { path = "../viz" }
-eframe = "0.30"
+survsim_controller = { path = "../controller" }
+survsim_planner = { path = "../planner" }
