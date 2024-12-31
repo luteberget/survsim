@@ -8,7 +8,7 @@ edition = "2021"
 default = ["highs", "prof"]
 highs=["dep:highs-sys"]
 gbfs=["dep:serde_json"]
-prof=["dep:hprof"]
+prof=["dep:hprof", "dep:serde_json", "dep:tabwriter"]
 
 [dependencies]
 env_logger = "0.11.5"
@@ -20,7 +20,7 @@ tinyvec = { version = "1.8.0", features = ["alloc"] }
 
 serde_json = { version="1.0.128", optional=true}
 highs-sys = { version = "1.6.4", features = ["libz"], optional=true }
-
+tabwriter = { version = "1.4", optional=true}
 
 [dev-dependencies]
 paho-mqtt = "0.12.5"

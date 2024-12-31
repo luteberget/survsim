@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use log::debug;
 use survsim_structs::{
     backend::Task,
     plan::{Cond, Plan, PlanTask},
@@ -148,7 +149,7 @@ pub fn convert_batt_cyc_plan(
         .iter()
         .map(|x| cyc_production_intervals(x, nodes).len())
         .sum::<usize>();
-    println!(
+    debug!(
         "COUNT ------- {} batt cycles, {} production intervals   obj: {:.2}",
         components.len(),
         n_prod_itervals,

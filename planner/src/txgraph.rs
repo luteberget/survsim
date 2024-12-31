@@ -86,7 +86,7 @@ fn base_transition(
     let dist_edge = &(state.loc, Location::Base);
     let dist = dist_map(dist_edge);
     let batt = if let Location::DroneInitial(v_idx) = state.loc {
-        println!(
+        trace!(
             "batt req {} {}",
             v_idx,
             dist.d_batt.min(problem.vehicles[v_idx].start_battery)

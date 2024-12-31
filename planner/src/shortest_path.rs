@@ -124,7 +124,7 @@ pub fn plan_vehicle(
             prev_node: u32::MAX,
             remaining_battery: *start_battery,
         });
-        println!(
+        debug!(
             "Start node {:?} {:?}",
             nodes[*start_node as usize].state, label_buf[*start_node as usize]
         );
@@ -247,7 +247,7 @@ pub fn plan_vehicle(
     let _p2 = hprof::enter("reconstruct path");
 
     // The problem should never be infeasible.
-    println!("BEST {:?}", best);
+    // println!("BEST {:?}", best);
 
     let (cost_including_shadow_price, mut node_idx, mut label_idx) = best?;
     let mut cost: f32 = 0.0;

@@ -144,7 +144,7 @@ pub fn test_regression11() {
     let x = solve_greedy_cycles(&problem);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 #[test]
@@ -154,7 +154,7 @@ pub fn test_regression12() {
     let x = solve_greedy_cycles(&problem);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 

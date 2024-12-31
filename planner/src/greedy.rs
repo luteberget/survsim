@@ -1,17 +1,17 @@
-
-use std::collections::HashSet;
 use crate::shortest_path::plan_vehicle;
+use std::collections::HashSet;
 use survsim_structs::report::Location;
 use survsim_structs::{plan::Plan, problem::Problem};
 use tinyvec::TinyVec;
 
+use crate::decomposition::{
+    convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan,
+};
 use crate::txgraph::{self, production_edge};
-use crate::decomposition::{convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan};
 
-
-pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
-
-    let (base_node, vehicle_start_nodes, mut nodes) = txgraph::build_graph(problem, 1.5 * 3600., 30);
+pub fn solve_greedy_cycles(problem: &Problem) -> (f32, Plan) {
+    let (base_node, vehicle_start_nodes, mut nodes) =
+        txgraph::build_graph(problem, 1.5 * 3600., 30);
 
     let vehicle_start_nodes = vehicle_start_nodes
         .into_iter()
@@ -39,7 +39,11 @@ pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
 
     let mut label_buf: Vec<TinyVec<[crate::shortest_path::Label; 20]>> =
         nodes.iter().map(|_| Default::default()).collect();
-    let mut airborne_vehicles = problem.vehicles.iter().map(|x| x.start_airborne).collect::<Vec<_>>();
+    let mut airborne_vehicles = problem
+        .vehicles
+        .iter()
+        .map(|x| x.start_airborne)
+        .collect::<Vec<_>>();
     let mut cyc_plans: Vec<BattCycPlan> = Vec::new();
 
     let mut time_cost: Vec<f32> = time_steps_vehicles
@@ -48,6 +52,7 @@ pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
         .collect();
 
     let mut airborne_only = true;
+    let mut total_cost = 0.0;
 
     'add: loop {
         let mut start_nodes = vehicle_start_nodes
@@ -78,9 +83,13 @@ pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
             &time_steps,
             &time_cost,
         ) {
-            let plan = BattCycPlan { cost: solution.cost, path: solution.path };
+            let plan = BattCycPlan {
+                cost: solution.cost,
+                path: solution.path,
+            };
 
-            println!("finished air {} plancost {}", finished_airborne, plan.cost);
+            total_cost += plan.cost;
+            // println!("finished air {} plancost {}", finished_airborne, plan.cost);
 
             if !airborne_only && plan.cost >= -5.0 {
                 if finished_airborne {
@@ -91,7 +100,7 @@ pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
                 }
             }
 
-            println!(" Fixing battcyc {}", cyc_plan_info(&plan, &nodes));
+            // println!(" Fixing battcyc {}", cyc_plan_info(&plan, &nodes));
 
             if let Location::DroneInitial(v_idx) = nodes[plan.path[0] as usize].state.loc {
                 airborne_vehicles[v_idx] = false;
@@ -101,7 +110,7 @@ pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
                 }
             }
 
-            #[cfg(feature="prof")]
+            #[cfg(feature = "prof")]
             let _p = hprof::enter("make fixed plan");
             get_plan_edges_in_air(&nodes, &plan.path, &time_steps, |t_idx| {
                 let capacity = &mut time_steps_vehicles[t_idx];
@@ -130,5 +139,6 @@ pub fn solve_greedy_cycles(problem: &Problem) -> Plan {
         }
     }
 
-    convert_batt_cyc_plan(problem, &nodes, cyc_plans)
+    let plan = convert_batt_cyc_plan(problem, &nodes, cyc_plans);
+    (total_cost, plan)
 }

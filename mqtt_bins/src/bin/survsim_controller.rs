@@ -69,7 +69,7 @@ fn main() {
         })
     };
 
-    let planner: Planner = Box::new(survsim_planner::greedy::solve_greedy_cycles);
+    let planner: Planner = Box::new(|problem| survsim_planner::greedy::solve_greedy_cycles(problem).1);
     let mut executive = Executive::new(planner);
     let mut backend = SurvsimBackend::new();
 
