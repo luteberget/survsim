@@ -8,6 +8,8 @@ use survsim_structs::{
 };
 use tinyvec::TinyVec;
 
+pub const DEFAULT_TIME_HORIZON :f32 = 1.5 * 3600.0;
+
 use crate::{ceil_time, round_time};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -54,6 +56,7 @@ fn succ(
     time_horison: f32,
     time_scale: i32,
     state: &State,
+    use_sink_nodes :bool,
     mut f: impl FnMut(State, EdgeData),
 ) {
     let air_time_cost = 0.1 * (1.0 + 1.0 * state.time as f32 / time_horison);
@@ -63,13 +66,15 @@ fn succ(
         Location::SinkNode => {}
         Location::Base => {
             f(State { loc: Location::Base, time: next_time }, zero_edge);
-            f(State { loc: Location::SinkNode, time: next_time }, zero_edge);
+            if use_sink_nodes {
+                f(State { loc: Location::SinkNode, time: next_time }, zero_edge);
+            }
             pois_transitions(problem, state, &dist_map, time_scale, &mut f, air_time_cost);
         }
 
         Location::DroneInitial(_) | Location::Task(_) => {
             pois_transitions(problem, state, &dist_map, time_scale, &mut f, air_time_cost);
-            base_transition(problem, state, dist_map, &mut f, time_scale, air_time_cost);
+            base_transition(problem, state, dist_map, &mut f, time_scale, air_time_cost, use_sink_nodes);
         }
     }
 }
@@ -81,6 +86,7 @@ fn base_transition(
     f: &mut impl FnMut(State, EdgeData),
     time_scale: i32,
     air_time_cost: f32,
+    use_sink_node :bool,
 ) {
     // Go to base
     let dist_edge = &(state.loc, Location::Base);
@@ -108,7 +114,7 @@ fn base_transition(
 
     f(
         State {
-            loc: Location::SinkNode,
+            loc: if use_sink_node { Location::SinkNode } else { Location::Base },
             time: round_time(state.time as f32 + (dist.dt).max(time_scale as f32), time_scale),
         },
         EdgeData {
@@ -176,7 +182,7 @@ fn pois_transitions(
     }
 }
 
-pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (u32, Vec<u32>, Vec<Node>) {
+pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32, use_sink_nodes :bool) -> (u32, Vec<u32>, Vec<Node>) {
     #[cfg(feature="prof")]
     let _p_graph = hprof::enter("mk_graph");
     // Create the graph
@@ -226,6 +232,7 @@ pub fn build_graph(problem: &Problem, time_horizon: f32, time_scale: i32) -> (u3
             time_horizon,
             time_scale,
             &state,
+            use_sink_nodes,
             |next_state, edge_data| {
                 if next_state.time > round_time(time_horizon, time_scale) {
                     return;

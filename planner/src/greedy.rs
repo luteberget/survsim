@@ -7,11 +7,11 @@ use tinyvec::TinyVec;
 use crate::decomposition::{
     convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan,
 };
-use crate::txgraph::{self, production_edge};
+use crate::txgraph::{self, production_edge, DEFAULT_TIME_HORIZON};
 
 pub fn solve_greedy_cycles(problem: &Problem) -> (f32, Plan) {
     let (base_node, vehicle_start_nodes, mut nodes) =
-        txgraph::build_graph(problem, 1.5 * 3600., 30);
+        txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, true);
 
     let vehicle_start_nodes = vehicle_start_nodes
         .into_iter()
@@ -140,5 +140,7 @@ pub fn solve_greedy_cycles(problem: &Problem) -> (f32, Plan) {
     }
 
     let plan = convert_batt_cyc_plan(problem, &nodes, cyc_plans);
+    // plan.print();
+    // panic!("success {}", total_cost);
     (total_cost, plan)
 }

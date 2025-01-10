@@ -1,4 +1,4 @@
-#![cfg(feature="highs")]
+#![cfg(feature = "highs")]
 
 use std::ffi::{c_void, CStr};
 
@@ -21,6 +21,18 @@ impl Default for LPInstance {
 }
 
 impl LPInstance {
+    pub fn set_time_limit(&mut self, seconds: f64) {
+        unsafe {
+            highs_sys::Highs_setDoubleOptionValue(
+                self.ptr,
+                CStr::from_bytes_with_nul("time_limit\0".as_bytes())
+                    .unwrap()
+                    .as_ptr(),
+                seconds,
+            )
+        };
+    }
+
     pub fn new() -> Self {
         let ptr = unsafe { highs_sys::Highs_create() };
         unsafe {
@@ -51,7 +63,7 @@ impl LPInstance {
                 CStr::from_bytes_with_nul("output_flag\0".as_bytes())
                     .unwrap()
                     .as_ptr(),
-                0,
+                1,
             )
         };
         // unsafe {
@@ -64,6 +76,11 @@ impl LPInstance {
         //     )
         // };
         Self { ptr }
+    }
+
+    #[allow(unused)]
+    pub fn set_bounds(&mut self, col_idx: i32, lower: f64, upper: f64) {
+        unsafe { highs_sys::Highs_changeColBounds(self.ptr, col_idx, lower, upper) };
     }
 
     #[allow(unused)]
@@ -82,8 +99,8 @@ impl LPInstance {
         unsafe { highs_sys::Highs_getInfinity(self.ptr) }
     }
 
-    pub fn add_column(&mut self, cost: f64, idxs: &[i32], coeffs: &[f64]) -> u32 {
-        let new_col_idx = unsafe { highs_sys::Highs_getNumCol(self.ptr) } as u32;
+    pub fn add_column(&mut self, cost: f64, idxs: &[i32], coeffs: &[f64]) -> i32 {
+        let new_col_idx = unsafe { highs_sys::Highs_getNumCol(self.ptr) } as i32;
         let inf = self.inf();
         assert!(idxs.len() == coeffs.len());
         let retval = unsafe {
@@ -108,9 +125,25 @@ impl LPInstance {
         new_row_idx
     }
 
+    pub fn add_constr(&mut self, lb: f64, ub: f64, idxs: &[HighsInt], values: &[f64]) -> u32 {
+        assert!(idxs.len() == values.len());
+        let new_row_idx = unsafe { highs_sys::Highs_getNumRow(self.ptr) } as u32;
+        unsafe {
+            highs_sys::Highs_addRow(
+                self.ptr,
+                lb,
+                ub,
+                idxs.len() as i32,
+                idxs.as_ptr(),
+                values.as_ptr(),
+            )
+        };
+        new_row_idx
+    }
+
     #[allow(unused)]
     pub fn write_model(&mut self) {
-        #[cfg(feature="prof")]
+        #[cfg(feature = "prof")]
         let _p = hprof::enter("write model");
         unsafe {
             highs_sys::Highs_writeModel(
@@ -158,8 +191,13 @@ impl LPInstance {
         }
     }
 
+    pub fn num_vars(&self) -> usize {
+        let n_cols = unsafe { highs_sys::Highs_getNumCol(self.ptr) } as usize;
+        n_cols
+    }
+
     pub fn optimize(&mut self, var_value_out: &mut [f64], row_dual_out: &mut [f64]) -> Option<f64> {
-        #[cfg(feature="prof")]
+        #[cfg(feature = "prof")]
         let _p = hprof::enter("lp optimize");
 
         let mut model_status = self.highs_solve();
@@ -184,11 +222,12 @@ impl LPInstance {
         assert!(
             model_status == Ok(HighsModelStatus::Optimal)
                 || model_status == Ok(HighsModelStatus::ModelEmpty)
+                || model_status == Ok(HighsModelStatus::ReachedTimeLimit)
         );
 
-        #[cfg(feature="prof")]
+        #[cfg(feature = "prof")]
         drop(_p);
-        #[cfg(feature="prof")]
+        #[cfg(feature = "prof")]
         let _p = hprof::enter("get_solution");
         // println!("Solved {:?} {:?}", _status, _model_status);
 

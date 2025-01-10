@@ -61,7 +61,9 @@ fn get_instance_files() -> std::vec::Vec<(std::path::PathBuf, InstanceSpec)> {
 pub fn main() {
     use core::f32;
     use std::{fs::read_to_string, time::Instant};
-    let solvers = [
+    type Solver = fn(&Problem) -> (f32, Plan);
+    let solvers: Vec<(&str, Solver)> = vec![
+        ("milp", survsim_planner::milp::solve),
         ("greedy", survsim_planner::greedy::solve_greedy_cycles),
         ("greedy2", survsim_planner::greedy::solve_greedy_cycles),
     ];
@@ -125,6 +127,9 @@ pub fn main() {
     println!("# RESULTS");
 
     use std::io::Write;
+
+    use survsim_structs::plan::Plan;
+    use survsim_structs::problem::Problem;
     let table = Vec::new();
     let mut tablewriter = tabwriter::TabWriter::new(table);
     write!(&mut tablewriter, "filename\tctc\tvhs\tidx").unwrap();

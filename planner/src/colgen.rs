@@ -16,7 +16,7 @@ use survsim_structs::{
 use tinyvec::TinyVec;
 
 use crate::{
-    decomposition::{convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan}, shortest_path::plan_vehicle, txgraph::{self, production_edge, Node}
+    decomposition::{convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan}, shortest_path::plan_vehicle, txgraph::{self, production_edge, Node, DEFAULT_TIME_HORIZON}
 };
 
 pub fn solve(problem: &Problem) -> Plan {
@@ -50,7 +50,7 @@ pub struct HeuristicColgenSolver<'a> {
 
 impl<'a> HeuristicColgenSolver<'a> {
     pub fn new(problem: &'a Problem) -> Self {
-        let (base_node, vehicle_start_nodes, nodes) = txgraph::build_graph(problem, 1.5 * 3600., 30);
+        let (base_node, vehicle_start_nodes, nodes) = txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, true);
 
         let vehicle_start_nodes = vehicle_start_nodes
             .into_iter()
