@@ -3,12 +3,13 @@ use core::f32;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    lpsolver::LPInstance,
-    txgraph::{self, production_edge, DEFAULT_TIME_HORIZON},
+    extsolvers::LPSolver, txgraph::{self, production_edge, DEFAULT_TIME_HORIZON}
 };
 use survsim_structs::{plan::Plan, problem::Problem, report::Location};
 
-pub fn solve(problem: &Problem) -> (f32, Plan) {
+
+
+pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64) -> ((f32, f32), Plan) {
     let (_base_node, vehicle_start_nodes, nodes) =
         txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, false);
 
@@ -24,7 +25,7 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
     };
     let last_time = *ts.last().unwrap();
 
-    let mut lp = LPInstance::new();
+    let mut lp = LP::new();
 
     #[derive(Debug)]
     enum VarInfo {
@@ -34,9 +35,9 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
 
     let mut var_info: Vec<VarInfo> = Default::default();
     let mut edge_vars: Vec<Vec<Vec<_>>> = vec![vec![vec![]; nodes.len()]; problem.vehicles.len()];
-    let mut incoming: Vec<Vec<Vec<(usize, i32)>>> =
+    let mut incoming: Vec<Vec<Vec<(usize, LP::Var)>>> =
         vec![vec![vec![]; nodes.len()]; problem.vehicles.len()];
-    let mut outgoing: Vec<Vec<Vec<(usize, i32)>>> =
+    let mut outgoing: Vec<Vec<Vec<(usize, LP::Var)>>> =
         vec![vec![vec![]; nodes.len()]; problem.vehicles.len()];
 
     for (v_idx, vehicle) in problem.vehicles.iter().enumerate() {
@@ -46,7 +47,7 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
                 node.outgoing.iter().enumerate()
             {
                 assert!(*added_cost == 0.0);
-                let var = lp.add_column(edge_data.cost as f64, &[], &[]);
+                let var = lp.add_var(edge_data.cost as f64);
                 var_info.push(VarInfo::Edge(v_idx, source_state, edge_idx));
                 lp.set_binary(var);
                 edge_vars[v_idx][source_state].push(var);
@@ -77,14 +78,14 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
                 coeffs.push(-1.0);
             }
 
-            lp.add_constr(-net_flow, -net_flow, &idxs, &coeffs);
+            lp.add_constraint(-net_flow, -net_flow, &idxs, &coeffs);
         }
 
         // Battery constraint
         let start_time = nodes[vehicle_start_nodes[v_idx] as usize].state.time;
         let mut battery_level_vars: HashMap<i32, _> = Default::default();
         battery_level_vars.insert(start_time, {
-            let var = lp.add_column(0.0, &[], &[]);
+            let var = lp.add_var(0.0);
             var_info.push(VarInfo::Battery(v_idx, start_time));
             lp.set_bounds(
                 var,
@@ -99,7 +100,7 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
             let prev_t = ts[t_idx - 1];
             let prev_var = battery_level_vars[&prev_t];
             let next_var = *battery_level_vars.entry(*next_t).or_insert_with(|| {
-                let var = lp.add_column(0.0, &[], &[]);
+                let var = lp.add_var(0.0);
                 var_info.push(VarInfo::Battery(v_idx, *next_t));
                 lp.set_bounds(var, 0.0, problem.battery_capacity as f64);
                 var
@@ -151,7 +152,7 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
                 }
             }
 
-            lp.add_constr(0.0, lp.inf(), &idxs, &coeffs);
+            lp.add_constraint(0.0, lp.inf(), &idxs, &coeffs);
         }
     }
 
@@ -162,7 +163,7 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
                 .iter()
                 .map(|edges| edges[node_idx][edge_idx])
                 .collect::<Vec<_>>();
-            lp.add_constr(0.0, 1.0, &vars, &vec![1.0; vars.len()]);
+            lp.add_constraint(-lp.inf(), 1.0, &vars, &vec![1.0; vars.len()]);
         }
     }
 
@@ -170,8 +171,8 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
     println!("writing model");
     lp.write_model();
     println!("optimizing");
-    lp.set_time_limit(30.0);
-    let objective = lp.optimize(&mut sol, &mut []);
+    lp.set_time_limit(timeout);
+    let result = lp.optimize();
     // println!("solution {:?}", sol);
 
     // for (var, val) in sol.iter().enumerate() {
@@ -193,7 +194,7 @@ pub fn solve(problem: &Problem) -> (f32, Plan) {
     // }
 
     (
-        objective.map(|x| x as f32).unwrap_or(f32::INFINITY),
+        result.map(|(x,y,_)| (x as f32, y as f32)).unwrap_or((f32::INFINITY, f32::NEG_INFINITY)),
         Plan {
             vehicle_tasks: vec![],
         },

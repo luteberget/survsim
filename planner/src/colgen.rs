@@ -16,7 +16,7 @@ use survsim_structs::{
 use tinyvec::TinyVec;
 
 use crate::{
-    decomposition::{convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan}, shortest_path::plan_vehicle, txgraph::{self, production_edge, Node, DEFAULT_TIME_HORIZON}
+    decomposition::{convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan}, extsolvers::highs::HighsSolverInstance, shortest_path::plan_vehicle, txgraph::{self, production_edge, Node, DEFAULT_TIME_HORIZON}
 };
 
 pub fn solve(problem: &Problem) -> Plan {
@@ -195,7 +195,7 @@ impl<'a> HeuristicColgenSolver<'a> {
         let _p = hprof::enter("colgen_fix_one");
         #[cfg(feature="prof")]
         let _p2 = hprof::enter("lp rebuild");
-        let mut rmp = crate::lpsolver::LPInstance::new();
+        let mut rmp = HighsSolverInstance::new();
         let mut shadow_prices: Vec<f64> = Default::default();
 
         println!(" Time capacity {:?}", self.time_steps_vehicles);
@@ -309,7 +309,7 @@ impl<'a> HeuristicColgenSolver<'a> {
             rmp.write_model();
             // panic!("ok");
 
-            let micro_obj = rmp.optimize(&mut [], &mut []).unwrap() as f32;
+            let micro_obj = rmp.optimize(&mut [], &mut []).unwrap().0 as f32;
             println!(
                 " optimized macro {} ({:.2}) cols {} micro {} ({:.2}) obj={:.2}",
                 self.fixed_plans.len(),

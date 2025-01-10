@@ -9,7 +9,7 @@ use crate::decomposition::{
 };
 use crate::txgraph::{self, production_edge, DEFAULT_TIME_HORIZON};
 
-pub fn solve_greedy_cycles(problem: &Problem) -> (f32, Plan) {
+pub fn solve_greedy_cycles(problem: &Problem) -> ((f32,f32), Plan) {
     let (base_node, vehicle_start_nodes, mut nodes) =
         txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, true);
 
@@ -142,5 +142,5 @@ pub fn solve_greedy_cycles(problem: &Problem) -> (f32, Plan) {
     let plan = convert_batt_cyc_plan(problem, &nodes, cyc_plans);
     // plan.print();
     // panic!("success {}", total_cost);
-    (total_cost, plan)
+    ((total_cost, f32::NEG_INFINITY), plan)
 }

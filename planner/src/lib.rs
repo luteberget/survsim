@@ -5,11 +5,12 @@ pub mod colgen;
 pub mod colgen_tests;
 pub mod gbfs;
 pub mod greedy;
-pub mod lpsolver;
+
 pub mod shortest_path;
 pub mod txgraph;
 pub mod decomposition;
 pub mod milp;
+pub mod extsolvers;
 
 pub fn round_time(t: f32, scale: i32) -> i32 {
     (t / scale as f32).round() as i32 * scale

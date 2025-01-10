@@ -61,11 +61,27 @@ fn get_instance_files() -> std::vec::Vec<(std::path::PathBuf, InstanceSpec)> {
 pub fn main() {
     use core::f32;
     use std::{fs::read_to_string, time::Instant};
-    type Solver = fn(&Problem) -> (f32, Plan);
+    type Solver = fn(&Problem) -> ((f32,f32), Plan);
+
+    fn gurobi_5sec(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::milp::solve::<GurobiSolver>(problem, 5.0)
+    }
+    fn gurobi_30sec(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::milp::solve::<GurobiSolver>(problem, 30.0)
+    }
+    fn highs_5sec(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 5.0)
+    }
+    fn highs_30sec(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 30.0)
+    }
+
     let solvers: Vec<(&str, Solver)> = vec![
-        ("milp", survsim_planner::milp::solve),
+        ("gurobi_5s", gurobi_5sec),
+        ("gurobi_30s", gurobi_30sec),
+        ("highs_5s", highs_5sec),
+        ("highs_30s", highs_30sec),
         ("greedy", survsim_planner::greedy::solve_greedy_cycles),
-        ("greedy2", survsim_planner::greedy::solve_greedy_cycles),
     ];
 
     println!("---------------------------");
@@ -109,12 +125,12 @@ pub fn main() {
                 println!("   - solving with: \"{}\"", solver_name);
                 let _p0 = hprof::enter("plan");
                 let t0 = Instant::now();
-                let (obj, plan) = solver_fn(&problem);
+                let ((obj,bound), plan) = solver_fn(&problem);
                 let time = t0.elapsed().as_secs_f32();
                 results.last_mut().unwrap().push(Result {
                     time,
                     obj,
-                    bound: f32::NEG_INFINITY,
+                    bound,
                 });
             }
         }
@@ -128,6 +144,8 @@ pub fn main() {
 
     use std::io::Write;
 
+    use survsim_planner::extsolvers::gurobi::GurobiSolver;
+    use survsim_planner::extsolvers::highs::HighsSolverInstance;
     use survsim_structs::plan::Plan;
     use survsim_structs::problem::Problem;
     let table = Vec::new();

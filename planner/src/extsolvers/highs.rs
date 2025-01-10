@@ -2,11 +2,11 @@
 
 use std::ffi::{c_void, CStr};
 
-pub struct LPInstance {
+pub struct HighsSolverInstance {
     ptr: *mut c_void,
 }
 
-impl Drop for LPInstance {
+impl Drop for HighsSolverInstance {
     fn drop(&mut self) {
         unsafe {
             highs_sys::Highs_destroy(self.ptr);
@@ -14,13 +14,59 @@ impl Drop for LPInstance {
     }
 }
 
-impl Default for LPInstance {
+impl Default for HighsSolverInstance {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl LPInstance {
+impl LPSolver for HighsSolverInstance {
+    type Var =i32;
+
+    fn new() -> Self {
+        HighsSolverInstance::new()
+    }
+
+    fn add_var(&mut self, cost:f64 ) -> Self::Var {
+        self.add_column(cost, &[], &[])
+    }
+
+    fn set_binary(&mut self, var :Self::Var) {
+        self.set_binary(var);
+    }
+
+    fn set_bounds(&mut self, var :Self::Var, lower :f64, upper :f64) {
+        self.set_bounds(var, lower, upper);
+    }
+
+    fn add_constraint(&mut self, lb :f64, ub :f64, idxs :&[Self::Var], coeffs :&[f64]) {
+        self.add_constr(lb, ub, idxs, coeffs);
+    }
+
+    fn set_time_limit(&mut self, seconds :f64) {
+        self.set_time_limit(seconds);
+    }
+
+    fn optimize(&mut self) -> Option<(f64, f64, Vec<f64>)> {
+        let mut var_value_out = vec![0.0; self.num_vars()];
+        let obj = self.optimize(&mut var_value_out, &mut []);
+        obj.map(|(obj,bound)| (obj, bound,var_value_out))
+    }
+
+    fn inf(&self) -> f64 {
+        self.inf()
+    }
+
+    fn num_vars(&self) -> usize {
+        self.num_vars()
+    }
+
+    fn write_model(&mut self)  {
+        self.write_model();
+    }
+}
+
+impl HighsSolverInstance {
     pub fn set_time_limit(&mut self, seconds: f64) {
         unsafe {
             highs_sys::Highs_setDoubleOptionValue(
@@ -196,7 +242,7 @@ impl LPInstance {
         n_cols
     }
 
-    pub fn optimize(&mut self, var_value_out: &mut [f64], row_dual_out: &mut [f64]) -> Option<f64> {
+    pub fn optimize(&mut self, var_value_out: &mut [f64], row_dual_out: &mut [f64]) -> Option<(f64, f64)> {
         #[cfg(feature = "prof")]
         let _p = hprof::enter("lp optimize");
 
@@ -294,9 +340,20 @@ impl LPInstance {
             )
         };
 
+        let mut dual_bound = 0.0f64;
+        unsafe {
+            highs_sys::Highs_getDoubleInfoValue(
+                self.ptr,
+                CStr::from_bytes_with_nul("mip_dual_bound\0".as_bytes())
+                    .unwrap()
+                    .as_ptr(),
+                &mut dual_bound,
+            )
+        };
+
         // println!("getsolution ok");
 
-        Some(objective_value)
+        Some((objective_value, dual_bound))
     }
 
     fn highs_solve(&mut self) -> Result<HighsModelStatus, InvalidStatus> {
@@ -317,6 +374,8 @@ use std::num::TryFromIntError;
 use std::os::raw::c_int;
 
 use highs_sys::*;
+
+use super::LPSolver;
 
 /// The kinds of results of an optimization
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Ord, Eq)]
