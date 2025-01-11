@@ -98,7 +98,7 @@ pub fn get_greedy_cycles(
                 }
             }
 
-            // println!(" Fixing battcyc {}", cyc_plan_info(&plan, &nodes));
+            println!(" Fixing battcyc {}", cyc_plan_info(&plan, &nodes));
 
             if let Location::DroneInitial(v_idx) = nodes[plan.path[0] as usize].state.loc {
                 airborne_vehicles[v_idx] = false;
@@ -150,6 +150,11 @@ pub fn solve_greedy_cycles(problem: &Problem) -> ((f32, f32), Plan) {
         .collect::<Vec<_>>();
 
     let (total_cost,  cyc_plans) = get_greedy_cycles(problem, base_node, &vehicle_start_nodes, &nodes);
+    for cyc_plan in cyc_plans.iter() {
+        for (n1,n2) in cyc_plan.path.iter().zip(cyc_plan.path.iter().skip(1)) {
+            println!("vx: {:?} --> {:?}", nodes[*n1 as usize].state, nodes[*n2 as usize].state);
+        }
+    }
     let plan = convert_batt_cyc_plan(problem, &nodes, cyc_plans);
     // plan.print();
     // panic!("success {}", total_cost);

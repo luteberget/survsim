@@ -167,36 +167,32 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64) -> ((f32, f32), Plan
         }
     }
 
-    let mut sol = vec![0.0; lp.num_vars()];
     println!("writing model");
     lp.write_model();
     println!("optimizing");
     lp.set_time_limit(timeout);
     let result = lp.optimize();
-    // println!("solution {:?}", sol);
 
-    // for (var, val) in sol.iter().enumerate() {
-    //     if *val > -1e-9 {
-    //         match var_info[var] {
-    //             VarInfo::Edge(v_idx, node_idx, edge_idx) => {
-    //                 println!(
-    //                     " x{} v{}  {:?}--{:?}  - {}",
-    //                     var + 1,
-    //                     v_idx,
-    //                     nodes[node_idx].state,
-    //                     nodes[nodes[node_idx].outgoing[edge_idx].0 as usize].state,
-    //                     *val
-    //                 );
-    //             }
-    //             VarInfo::Battery(_, _) => {},
-    //         }
-    //     }
-    // }
+    if let Some((obj,bound,sol)) = result {
 
-    (
-        result.map(|(x,y,_)| (x as f32, y as f32)).unwrap_or((f32::INFINITY, f32::NEG_INFINITY)),
-        Plan {
+        for (info,val) in var_info.iter().zip(sol.iter()) {
+            if *val >= 1e-3 {
+                match info {
+                    VarInfo::Edge(v_idx,n1_idx,e_idx) => {
+                        let n2_idx = nodes[*n1_idx].outgoing[*e_idx].0 as usize;
+                        println!("v{}: {:?} --> {:?}", v_idx, nodes[*n1_idx].state, nodes[n2_idx].state);
+                    }
+                    VarInfo::Battery(_, _) => {},
+                }
+            }
+        }
+
+        let plan = Plan {
             vehicle_tasks: vec![],
-        },
-    )
+        };
+
+        ((obj as f32,bound as f32),plan)
+    } else {
+        ((f32::INFINITY, f32::NEG_INFINITY), Plan { vehicle_tasks: vec![] })
+    }
 }

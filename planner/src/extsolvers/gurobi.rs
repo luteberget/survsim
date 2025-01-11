@@ -12,6 +12,7 @@ static GLOBAL_GUROBI_ENV :RefCell<Option<grb::Env>> = const { RefCell::new(None)
 
 pub struct GurobiSolver {
     grb: grb::Model,
+    added_vars: Vec<grb::Var>,
 }
 
 impl LPSolver for GurobiSolver {
@@ -25,12 +26,17 @@ impl LPSolver for GurobiSolver {
             let env = e.as_ref().unwrap();
             grb::Model::with_env("", env).unwrap()
         });
-        Self { grb }
+        Self {
+            grb,
+            added_vars: Vec::new(),
+        }
     }
 
     fn add_var(&mut self, cost: f64) -> Self::Var {
         let model = &mut self.grb;
-        add_ctsvar!(model, obj: cost, bounds: ..).unwrap()
+        let var = add_ctsvar!(model, obj: cost, bounds: ..).unwrap();
+        self.added_vars.push(var);
+        var
     }
 
     fn set_binary(&mut self, var: Self::Var) {
@@ -89,7 +95,13 @@ impl LPSolver for GurobiSolver {
             | Status::SolutionLimit => {
                 let bound = self.grb.get_attr(attr::ObjBound).unwrap();
                 let obj = self.grb.get_attr(attr::ObjVal).unwrap();
-                Some((obj, bound,vec![]))
+
+                let sol = self
+                    .grb
+                    .get_obj_attr_batch(grb::attr::X, self.added_vars.iter().cloned())
+                    .unwrap();
+
+                Some((obj, bound, sol))
             }
             _ => None,
         }

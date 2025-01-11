@@ -95,7 +95,7 @@ pub fn get_plan_edges_in_air(nodes: &[Node], path: &[u32], time: &[i32], mut f: 
         let on_ground = (s1.loc == Location::Base && s2.loc == Location::Base)
             || (s1.loc == Location::SinkNode && s2.loc == Location::SinkNode);
         if !on_ground {
-            while time[t_idx] < s2.time {
+            while t_idx < time.len() && time[t_idx] <= s2.time {
                 f(t_idx);
                 t_idx += 1;
             }

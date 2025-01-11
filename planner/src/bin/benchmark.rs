@@ -89,12 +89,12 @@ pub fn main() {
     }
 
     let solvers: Vec<(&str, Solver)> = vec![
-        ("gurobi_5s", gurobi_5sec),
+        // ("gurobi_5s", gurobi_5sec),
         // ("gurobi_30s", gurobi_30sec),
-        // ("highs_5s", highs_5sec),
-        // ("highs_30s", highs_30sec),
+        // // ("highs_5s", highs_5sec),
+        // // ("highs_30s", highs_30sec),
         // ("colgen_30s", colgen_30sec),
-        ("colgen_30s_gi", colgen_30sec_greedyinit),
+        // ("colgen_30s_gi", colgen_30sec_greedyinit),
         ("greedy", survsim_planner::greedy::solve_greedy_cycles),
     ];
 

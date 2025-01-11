@@ -178,6 +178,7 @@ pub fn plan_vehicle(
             let edge_time_cost = if edge_on_ground {
                 0.0
             } else {
+                // TODO, this is not correct if we use vehicle capacity on the last time step of the plan.
                 time_steps[time_cost_idx..]
                     .iter()
                     .zip(time_cost[time_cost_idx..].iter())
