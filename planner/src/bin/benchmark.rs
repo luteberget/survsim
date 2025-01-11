@@ -75,12 +75,26 @@ pub fn main() {
     fn highs_30sec(problem: &Problem) -> ((f32,f32), Plan) {
         survsim_planner::milp::solve::<HighsSolverInstance>(problem, 30.0)
     }
+    fn colgen_5sec(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::colgen::HeuristicColgenSolver::new(problem).solve_price_and_branch(5.0)
+    }
+    fn colgen_30sec(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::colgen::HeuristicColgenSolver::new(problem).solve_price_and_branch(30.0)
+    }
+    fn colgen_5sec_greedyinit(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::colgen::HeuristicColgenSolver::new(problem).add_greedy_columns().solve_price_and_branch(5.0)
+    }
+    fn colgen_30sec_greedyinit(problem: &Problem) -> ((f32,f32), Plan) {
+        survsim_planner::colgen::HeuristicColgenSolver::new(problem).add_greedy_columns().solve_price_and_branch(30.0)
+    }
 
     let solvers: Vec<(&str, Solver)> = vec![
         ("gurobi_5s", gurobi_5sec),
-        ("gurobi_30s", gurobi_30sec),
-        ("highs_5s", highs_5sec),
-        ("highs_30s", highs_30sec),
+        // ("gurobi_30s", gurobi_30sec),
+        // ("highs_5s", highs_5sec),
+        // ("highs_30s", highs_30sec),
+        // ("colgen_30s", colgen_30sec),
+        ("colgen_30s_gi", colgen_30sec_greedyinit),
         ("greedy", survsim_planner::greedy::solve_greedy_cycles),
     ];
 

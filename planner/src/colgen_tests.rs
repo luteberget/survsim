@@ -23,7 +23,7 @@ pub fn test_flying1() {
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 #[test]
@@ -33,7 +33,7 @@ pub fn test_flying2() {
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 #[test]
@@ -43,7 +43,7 @@ pub fn test_flying3() {
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 #[test]
@@ -53,7 +53,7 @@ pub fn test_flying4() {
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 #[test]
@@ -63,7 +63,7 @@ pub fn test_flying5() {
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 #[test]
@@ -73,7 +73,7 @@ pub fn test_flying6() {
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 #[test]
@@ -133,7 +133,7 @@ pub fn test_regression10() {
     let x = HeuristicColgenSolver::new(&problem).solve_heuristic();
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
-    x.print();
+    x.1.print();
 }
 
 
@@ -193,7 +193,7 @@ pub fn test_rp1() {
     let _ = env_logger::try_init();
     let problem = serde_json::from_str(&std::fs::read_to_string("../r_p1.json").unwrap()).unwrap();
     let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
-    send_plan(&p);
+    send_plan(&p.1);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     // x.print();
@@ -205,7 +205,7 @@ pub fn test_rp2() {
     let problem = serde_json::from_str(&std::fs::read_to_string("../r_p2.json").unwrap()).unwrap();
 
     let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
-    send_plan(&p);
+    send_plan(&p.1);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     // x.print();
@@ -216,7 +216,7 @@ pub fn test_rd1() {
     let _ = env_logger::try_init();
     let problem = serde_json::from_str(&std::fs::read_to_string("../r_d1.json").unwrap()).unwrap();
     let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
-    send_plan(&p);
+    send_plan(&p.1);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     // x.print();
@@ -228,7 +228,7 @@ pub fn test_rd2() {
     let problem = serde_json::from_str(&std::fs::read_to_string("../r_d2.json").unwrap()).unwrap();
 
     let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
-    send_plan(&p);
+    send_plan(&p.1);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     // x.print();
@@ -239,7 +239,7 @@ pub fn test_r41() {
     let _ = env_logger::try_init();
     let problem = serde_json::from_str(&std::fs::read_to_string("../r_41.json").unwrap()).unwrap();
     let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
-    send_plan(&p);
+    send_plan(&p.1);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     // x.print();
@@ -251,7 +251,7 @@ pub fn test_r42() {
     let problem = serde_json::from_str(&std::fs::read_to_string("../r_42.json").unwrap()).unwrap();
 
     let p = HeuristicColgenSolver::new(&problem).solve_heuristic();
-    send_plan(&p);
+    send_plan(&p.1);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     // x.print();

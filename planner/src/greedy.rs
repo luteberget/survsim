@@ -7,17 +7,15 @@ use tinyvec::TinyVec;
 use crate::decomposition::{
     convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan,
 };
-use crate::txgraph::{self, production_edge, DEFAULT_TIME_HORIZON};
+use crate::txgraph::{self, production_edge, Node, DEFAULT_TIME_HORIZON};
 
-pub fn solve_greedy_cycles(problem: &Problem) -> ((f32,f32), Plan) {
-    let (base_node, vehicle_start_nodes, mut nodes) =
-        txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, true);
-
-    let vehicle_start_nodes = vehicle_start_nodes
-        .into_iter()
-        .zip(problem.vehicles.iter())
-        .map(|(n, v)| (n, v.start_battery))
-        .collect::<Vec<_>>();
+pub fn get_greedy_cycles(
+    problem: &Problem,
+    base_node: u32,
+    vehicle_start_nodes: &[(u32, f32)],
+    nodes: &[Node],
+) -> (f32,  Vec<BattCycPlan>) {
+    let mut nodes = nodes.to_vec();
 
     let mut time_steps = nodes
         .iter()
@@ -138,7 +136,20 @@ pub fn solve_greedy_cycles(problem: &Problem) -> ((f32,f32), Plan) {
             panic!("infeasible");
         }
     }
+    (total_cost, cyc_plans)
+}
 
+pub fn solve_greedy_cycles(problem: &Problem) -> ((f32, f32), Plan) {
+    let (base_node, vehicle_start_nodes, mut nodes) =
+        txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, true);
+
+    let vehicle_start_nodes = vehicle_start_nodes
+        .into_iter()
+        .zip(problem.vehicles.iter())
+        .map(|(n, v)| (n, v.start_battery))
+        .collect::<Vec<_>>();
+
+    let (total_cost,  cyc_plans) = get_greedy_cycles(problem, base_node, &vehicle_start_nodes, &nodes);
     let plan = convert_batt_cyc_plan(problem, &nodes, cyc_plans);
     // plan.print();
     // panic!("success {}", total_cost);

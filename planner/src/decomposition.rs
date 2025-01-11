@@ -12,6 +12,7 @@ use survsim_structs::{
 use crate::txgraph::Node;
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct BattCycPlan {
     pub cost: f32,
     pub path: Vec<u32>,
