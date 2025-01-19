@@ -1,3 +1,5 @@
+use crate::extsolvers::highs::HighsSolverInstance;
+use crate::milp;
 use crate::shortest_path::plan_vehicle;
 use std::collections::HashSet;
 use survsim_structs::report::Location;
@@ -14,7 +16,7 @@ pub fn get_greedy_cycles(
     base_node: u32,
     vehicle_start_nodes: &[(u32, f32)],
     nodes: &[Node],
-) -> (f32,  Vec<BattCycPlan>) {
+) -> (f32, Vec<BattCycPlan>) {
     let mut nodes = nodes.to_vec();
 
     let mut time_steps = nodes
@@ -149,13 +151,24 @@ pub fn solve_greedy_cycles(problem: &Problem) -> ((f32, f32), Plan) {
         .map(|(n, v)| (n, v.start_battery))
         .collect::<Vec<_>>();
 
-    let (total_cost,  cyc_plans) = get_greedy_cycles(problem, base_node, &vehicle_start_nodes, &nodes);
+    let (total_cost, cyc_plans) =
+        get_greedy_cycles(problem, base_node, &vehicle_start_nodes, &nodes);
     for cyc_plan in cyc_plans.iter() {
-        for (n1,n2) in cyc_plan.path.iter().zip(cyc_plan.path.iter().skip(1)) {
-            println!("vx: {:?} --> {:?}", nodes[*n1 as usize].state, nodes[*n2 as usize].state);
+        for (n1, n2) in cyc_plan.path.iter().zip(cyc_plan.path.iter().skip(1)) {
+            println!(
+                "vx: {:?} --> {:?}",
+                nodes[*n1 as usize].state, nodes[*n2 as usize].state
+            );
         }
     }
     let plan = convert_batt_cyc_plan(problem, &nodes, cyc_plans);
+
+    // VERIFY
+    #[cfg(feature = "highs")]
+    {
+        milp::solve::<HighsSolverInstance>(problem, 5.0, Some(&plan), true);
+    }
+
     // plan.print();
     // panic!("success {}", total_cost);
     ((total_cost, f32::NEG_INFINITY), plan)

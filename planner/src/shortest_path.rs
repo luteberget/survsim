@@ -83,9 +83,9 @@ pub fn plan_vehicle(
     time_steps: &[i32],
     time_cost: &[f32],
 ) -> Option<VehicleSolution> {
-    #[cfg(feature="prof")]
+    #[cfg(feature = "prof")]
     let _p = hprof::enter("plan_vehicle");
-    #[cfg(feature="prof")]
+    #[cfg(feature = "prof")]
     let _p0 = hprof::enter("plan init");
     assert!(nodes.len() == label_buf.len());
     // let final_time = nodes.last().map(|x| x.state.time);
@@ -135,10 +135,10 @@ pub fn plan_vehicle(
     let mut n_ops = 0;
     // Iterate all nodes
 
-    #[cfg(feature="prof")]
+    #[cfg(feature = "prof")]
     drop(_p0);
     for (src_node_idx, node) in nodes.iter().enumerate() {
-        #[cfg(feature="prof")]
+        #[cfg(feature = "prof")]
         let _pp = hprof::enter("node");
         trace!("Searching from node {} {:?}", src_node_idx, node.state);
         if
@@ -167,6 +167,7 @@ pub fn plan_vehicle(
             }
 
             // Advance time cost pointer
+            assert!(time_steps[time_cost_idx] <= node.state.time);
             while time_steps[time_cost_idx] < node.state.time {
                 time_cost_idx += 1;
             }
@@ -175,24 +176,27 @@ pub fn plan_vehicle(
                 || node.state.loc == Location::SinkNode)
                 && (target_node.state.loc == Location::Base
                     || target_node.state.loc == Location::SinkNode);
+            let first_edge = node.state.loc == Location::Base && !edge_on_ground;
             let edge_time_cost = if edge_on_ground {
                 0.0
             } else {
-                // TODO, this is not correct if we use vehicle capacity on the last time step of the plan.
-                time_steps[time_cost_idx..]
+               time_steps[time_cost_idx..]
                     .iter()
-                    .zip(time_cost[time_cost_idx..].iter())
-                    .take_while(|(t, _)| **t < target_node.state.time)
+                    .zip(
+                        time_cost[(if first_edge {
+                            time_cost_idx
+                        } else {
+                            time_cost_idx + 1
+                        })..]
+                            .iter(),
+                    )
+                    .take_while(|(t, _)| **t <= target_node.state.time)
                     .map(|(_, c)| *c)
                     .sum()
             };
 
             if edge_shadow_price.is_infinite() || edge_time_cost.is_infinite() {
                 continue;
-            }
-
-            if !edge_on_ground && node.state.time == 0 || node.state.time == 30 {
-                // println!("edge time cost {:?} for {:?}", edge_time_cost, node.state);
             }
 
             for label_idx in 0..label_buf[src_node_idx].len() {
@@ -244,7 +248,7 @@ pub fn plan_vehicle(
             }
         }
     }
-    #[cfg(feature="prof")]
+    #[cfg(feature = "prof")]
     let _p2 = hprof::enter("reconstruct path");
 
     // The problem should never be infeasible.

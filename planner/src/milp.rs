@@ -9,7 +9,7 @@ use survsim_structs::{plan::Plan, problem::Problem, report::Location};
 
 
 
-pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64) -> ((f32, f32), Plan) {
+pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Option<&Plan>, verify_only: bool) -> ((f32, f32), Plan) {
     let (_base_node, vehicle_start_nodes, nodes) =
         txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, false);
 
@@ -166,6 +166,19 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64) -> ((f32, f32), Plan
             lp.add_constraint(-lp.inf(), 1.0, &vars, &vec![1.0; vars.len()]);
         }
     }
+
+    if let Some(sol) = initial_solution {
+        for v in sol.vehicle_tasks.iter() {
+
+            for pt in v.iter() {
+                println!("VERIFY {:?}", pt);
+
+            }
+
+        }
+        todo!();
+    }
+
 
     println!("writing model");
     lp.write_model();

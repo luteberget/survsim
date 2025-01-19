@@ -64,16 +64,16 @@ pub fn main() {
     type Solver = fn(&Problem) -> ((f32,f32), Plan);
 
     fn gurobi_5sec(problem: &Problem) -> ((f32,f32), Plan) {
-        survsim_planner::milp::solve::<GurobiSolver>(problem, 5.0)
+        survsim_planner::milp::solve::<GurobiSolver>(problem, 5.0, None, false)
     }
     fn gurobi_30sec(problem: &Problem) -> ((f32,f32), Plan) {
-        survsim_planner::milp::solve::<GurobiSolver>(problem, 30.0)
+        survsim_planner::milp::solve::<GurobiSolver>(problem, 30.0, None, false)
     }
     fn highs_5sec(problem: &Problem) -> ((f32,f32), Plan) {
-        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 5.0)
+        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 5.0, None, false)
     }
     fn highs_30sec(problem: &Problem) -> ((f32,f32), Plan) {
-        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 30.0)
+        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 30.0, None, false)
     }
     fn colgen_5sec(problem: &Problem) -> ((f32,f32), Plan) {
         survsim_planner::colgen::HeuristicColgenSolver::new(problem).solve_price_and_branch(5.0)
