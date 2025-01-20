@@ -277,7 +277,8 @@ impl<'a> HeuristicColgenSolver<'a> {
             .map(|(p, _)| p.clone())
             .collect::<Vec<_>>();
 
-        let plan = convert_batt_cyc_plan(self.problem, &self.nodes, cycles);
+        let (plan, _) =
+            convert_batt_cyc_plan(self.problem, &self.nodes, &self.vehicle_start_nodes, cycles);
 
         ((obj, f32::NEG_INFINITY), plan)
     }
@@ -615,7 +616,12 @@ impl<'a> HeuristicColgenSolver<'a> {
             .all(|(v, f)| *f || !self.problem.vehicles[v].start_airborne));
 
         let total_cost = self.fixed_plans.iter().map(|x| x.cost).sum::<f32>();
-        let plan = convert_batt_cyc_plan(self.problem, &self.nodes, self.fixed_plans);
+        let (plan, _) = convert_batt_cyc_plan(
+            self.problem,
+            &self.nodes,
+            &self.vehicle_start_nodes,
+            self.fixed_plans,
+        );
         ((total_cost, f32::NEG_INFINITY), plan)
     }
 

@@ -3,13 +3,13 @@ use core::f32;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    extsolvers::LPSolver, txgraph::{self, production_edge, DEFAULT_TIME_HORIZON}
+    decomposition::TxGraphPlan, extsolvers::LPSolver, txgraph::{self, production_edge, DEFAULT_TIME_HORIZON}
 };
 use survsim_structs::{plan::Plan, problem::Problem, report::Location};
 
 
 
-pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Option<&Plan>, verify_only: bool) -> ((f32, f32), Plan) {
+pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Option<&TxGraphPlan>, verify_only: bool) -> ((f32, f32), Plan) {
     let (_base_node, vehicle_start_nodes, nodes) =
         txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, false);
 
@@ -167,9 +167,8 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Op
         }
     }
 
-    if let Some(sol) = initial_solution {
-        for v in sol.vehicle_tasks.iter() {
-
+    if let Some(TxGraphPlan(sol)) = initial_solution {
+        for v in sol.iter() {
             for pt in v.iter() {
                 println!("VERIFY {:?}", pt);
 

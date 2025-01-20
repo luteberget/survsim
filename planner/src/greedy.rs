@@ -161,12 +161,13 @@ pub fn solve_greedy_cycles(problem: &Problem) -> ((f32, f32), Plan) {
             );
         }
     }
-    let plan = convert_batt_cyc_plan(problem, &nodes, cyc_plans);
+    let (plan, tx_graph_plan) =
+        convert_batt_cyc_plan(problem, &nodes, &vehicle_start_nodes, cyc_plans);
 
     // VERIFY
     #[cfg(feature = "highs")]
     {
-        milp::solve::<HighsSolverInstance>(problem, 5.0, Some(&plan), true);
+        milp::solve::<HighsSolverInstance>(problem, 5.0, Some(&tx_graph_plan), true);
     }
 
     // plan.print();

@@ -9,10 +9,9 @@ use survsim_structs::{
     TaskRef,
 };
 
-use crate::txgraph::Node;
+use crate::txgraph::{Node, State};
 
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BattCycPlan {
     pub cost: f32,
     pub path: Vec<u32>,
@@ -45,10 +44,11 @@ pub fn cyc_start_end(plan: &BattCycPlan, nodes: &[Node]) -> ((usize, usize), (i3
         .path
         .iter()
         .position(|node_idx| nodes[*node_idx as usize].state.loc == Location::SinkNode)
-        .unwrap();
+        .unwrap()
+        + 1;
 
     let start_time = nodes[plan.path[start_path_idx] as usize].state.time;
-    let end_time = nodes[plan.path[end_path_idx] as usize].state.time;
+    let end_time = nodes[plan.path[end_path_idx - 1] as usize].state.time;
     ((start_path_idx, end_path_idx), (start_time, end_time))
 }
 
@@ -113,11 +113,14 @@ pub fn get_plan_prod_nodes(nodes: &[Node], path: &[u32], mut f: impl FnMut(u32))
     }
 }
 
+pub struct TxGraphPlan(pub Vec<Vec<State>>);
+
 pub fn convert_batt_cyc_plan(
     problem: &Problem,
     nodes: &[Node],
+    vehicle_start_nodes: &[(u32, f32)],
     components: Vec<BattCycPlan>,
-) -> Plan {
+) -> (Plan, TxGraphPlan) {
     // Sort components by time
     let start_and_end_times = components
         .iter()
@@ -146,6 +149,21 @@ pub fn convert_batt_cyc_plan(
         problem.vehicles.len()
     ];
 
+    let all_time_steps = {
+        let steps = nodes
+            .iter()
+            .map(|n| n.state.time)
+            .collect::<std::collections::HashSet<_>>();
+        let mut steps = steps.into_iter().collect::<Vec<_>>();
+        steps.sort();
+        steps
+    };
+
+    let mut v_txplans: Vec<Vec<State>> = vehicle_start_nodes
+        .iter()
+        .map(|(n, _)| vec![nodes[*n as usize].state])
+        .collect::<Vec<_>>();
+
     let n_prod_itervals = components
         .iter()
         .map(|x| cyc_production_intervals(x, nodes).len())
@@ -161,7 +179,7 @@ pub fn convert_batt_cyc_plan(
         let plan = &components[plan_idx];
         let ((start_path_idx, end_path_idx), (start_time, end_time)) =
             start_and_end_times[plan_idx];
-        // println!("treating plan {:?}", plan);
+        println!("treating plan {:?}", plan);
         let v_init = match nodes[plan.path[0] as usize].state.loc {
             Location::DroneInitial(d) => Some(d),
             _ => None,
@@ -194,10 +212,36 @@ pub fn convert_batt_cyc_plan(
             .is_infinite());
         vplan.last_mut().unwrap().1.finish_cond.time = Some(start_time as f32);
 
+        assert!(v_txplans[v_idx].last().unwrap().time <= start_time);
+        while v_txplans[v_idx].last().unwrap().time < start_time {
+            assert!(v_txplans[v_idx].last().unwrap().loc == Location::Base);
+            // find next time stamp
+            let pos = all_time_steps
+                .binary_search(&v_txplans[v_idx].last().unwrap().time)
+                .unwrap();
+            let next_time = all_time_steps[pos + 1];
+            v_txplans[v_idx].push(State {
+                loc: Location::Base,
+                time: next_time,
+            });
+        }
+
         for (n1, n2) in plan.path[start_path_idx..end_path_idx]
             .iter()
             .zip(plan.path[start_path_idx + 1..].iter())
         {
+            // We should already be at n1.
+            assert!(v_txplans[v_idx].last().unwrap() == &nodes[*n1 as usize].state);
+            v_txplans[v_idx].push(nodes[*n2 as usize].state);
+
+            // Rewrite sink to base
+            {
+                let vtx_last = v_txplans[v_idx].last_mut().unwrap();
+                if vtx_last.loc == Location::SinkNode {
+                    vtx_last.loc = Location::Base;
+                }
+            }
+
             let (s1, s2) = (&nodes[*n1 as usize], &nodes[*n2 as usize]);
             assert!(s1.state.time < s2.state.time);
             match (s1.state.loc, s2.state.loc) {
@@ -291,6 +335,24 @@ pub fn convert_batt_cyc_plan(
         ));
     }
 
+    // Extend the plans to the end of the plnning horizon
+    let last_time = *all_time_steps.last().unwrap();
+    for (v_idx, _v) in problem.vehicles.iter().enumerate() {
+        assert!(v_txplans[v_idx].last().unwrap().time <= last_time);
+        while v_txplans[v_idx].last().unwrap().time < last_time {
+            assert!(v_txplans[v_idx].last().unwrap().loc == Location::Base);
+            // find next time stamp
+            let pos = all_time_steps
+                .binary_search(&v_txplans[v_idx].last().unwrap().time)
+                .unwrap();
+            let next_time = all_time_steps[pos + 1];
+            v_txplans[v_idx].push(State {
+                loc: Location::Base,
+                time: next_time,
+            });
+        }
+    }
+
     let mut poi_watchers = problem
         .pois
         .iter()
@@ -332,10 +394,13 @@ pub fn convert_batt_cyc_plan(
         }
     }
 
-    Plan {
-        vehicle_tasks: v_plans
-            .into_iter()
-            .map(|x| x.into_iter().map(|(_, t)| t).collect())
-            .collect(),
-    }
+    (
+        Plan {
+            vehicle_tasks: v_plans
+                .into_iter()
+                .map(|x| x.into_iter().map(|(_, t)| t).collect())
+                .collect(),
+        },
+        TxGraphPlan(v_txplans),
+    )
 }
