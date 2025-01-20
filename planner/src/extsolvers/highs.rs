@@ -21,36 +21,36 @@ impl Default for HighsSolverInstance {
 }
 
 impl LPSolver for HighsSolverInstance {
-    type Var =i32;
+    type Var = i32;
 
     fn new() -> Self {
         HighsSolverInstance::new()
     }
 
-    fn add_var(&mut self, cost:f64 ) -> Self::Var {
+    fn add_var(&mut self, cost: f64) -> Self::Var {
         self.add_column(cost, &[], &[])
     }
 
-    fn set_binary(&mut self, var :Self::Var) {
+    fn set_binary(&mut self, var: Self::Var) {
         self.set_binary(var);
     }
 
-    fn set_bounds(&mut self, var :Self::Var, lower :f64, upper :f64) {
+    fn set_bounds(&mut self, var: Self::Var, lower: f64, upper: f64) {
         self.set_bounds(var, lower, upper);
     }
 
-    fn add_constraint(&mut self, lb :f64, ub :f64, idxs :&[Self::Var], coeffs :&[f64]) {
+    fn add_constraint(&mut self, lb: f64, ub: f64, idxs: &[Self::Var], coeffs: &[f64]) {
         self.add_constr(lb, ub, idxs, coeffs);
     }
 
-    fn set_time_limit(&mut self, seconds :f64) {
+    fn set_time_limit(&mut self, seconds: f64) {
         self.set_time_limit(seconds);
     }
 
     fn optimize(&mut self) -> Option<(f64, f64, Vec<f64>)> {
         let mut var_value_out = vec![0.0; self.num_vars()];
         let obj = self.optimize(&mut var_value_out, &mut []);
-        obj.map(|(obj,bound)| (obj, bound,var_value_out))
+        obj.map(|(obj, bound)| (obj, bound, var_value_out))
     }
 
     fn inf(&self) -> f64 {
@@ -61,8 +61,18 @@ impl LPSolver for HighsSolverInstance {
         self.num_vars()
     }
 
-    fn write_model(&mut self)  {
+    fn write_model(&mut self) {
         self.write_model();
+    }
+
+    fn set_partial_solution(&mut self, idxs: &[Self::Var], values: &[f64]) {
+        assert!(idxs.len() == values.len());
+        let retval = unsafe {
+            Highs_setSparseSolution(self.ptr, idxs.len() as i32, idxs.as_ptr(), values.as_ptr())
+        };
+
+        let status = HighsStatus::try_from(retval);
+        assert!(status == Ok(HighsStatus::OK));
     }
 }
 
@@ -242,7 +252,11 @@ impl HighsSolverInstance {
         n_cols
     }
 
-    pub fn optimize(&mut self, var_value_out: &mut [f64], row_dual_out: &mut [f64]) -> Option<(f64, f64)> {
+    pub fn optimize(
+        &mut self,
+        var_value_out: &mut [f64],
+        row_dual_out: &mut [f64],
+    ) -> Option<(f64, f64)> {
         #[cfg(feature = "prof")]
         let _p = hprof::enter("lp optimize");
 

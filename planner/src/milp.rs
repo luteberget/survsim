@@ -3,13 +3,18 @@ use core::f32;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    decomposition::TxGraphPlan, extsolvers::LPSolver, txgraph::{self, production_edge, DEFAULT_TIME_HORIZON}
+    decomposition::TxGraphPlan,
+    extsolvers::LPSolver,
+    txgraph::{self, production_edge, State, DEFAULT_TIME_HORIZON},
 };
 use survsim_structs::{plan::Plan, problem::Problem, report::Location};
 
-
-
-pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Option<&TxGraphPlan>, verify_only: bool) -> ((f32, f32), Plan) {
+pub fn solve<LP: LPSolver>(
+    problem: &Problem,
+    timeout: f64,
+    initial_solution: Option<&TxGraphPlan>,
+    verify_only: bool,
+) -> ((f32, f32), Plan) {
     let (_base_node, vehicle_start_nodes, nodes) =
         txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, false);
 
@@ -40,6 +45,8 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Op
     let mut outgoing: Vec<Vec<Vec<(usize, LP::Var)>>> =
         vec![vec![vec![]; nodes.len()]; problem.vehicles.len()];
 
+    let mut edge_lookup: HashMap<(usize, State, State), LP::Var> = HashMap::new();
+
     for (v_idx, vehicle) in problem.vehicles.iter().enumerate() {
         // Edge variables
         for (source_state, node) in nodes.iter().enumerate() {
@@ -53,6 +60,10 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Op
                 edge_vars[v_idx][source_state].push(var);
                 incoming[v_idx][*target_state as usize].push((source_state, var));
                 outgoing[v_idx][source_state].push((*target_state as usize, var));
+                edge_lookup.insert(
+                    (v_idx, node.state, nodes[*target_state as usize].state),
+                    var,
+                );
             }
         }
 
@@ -168,16 +179,59 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Op
     }
 
     if let Some(TxGraphPlan(sol)) = initial_solution {
-        for v in sol.iter() {
-            for pt in v.iter() {
-                println!("VERIFY {:?}", pt);
+        let selected_edges = sol
+            .iter()
+            .enumerate()
+            .flat_map(|(v, ss)| {
+                let edge_lookup = &edge_lookup;
+                ss.iter()
+                    .zip(ss.iter().skip(1))
+                    .map(move |(s1, s2)| edge_lookup[&(v, *s1, *s2)])
+            })
+            .collect::<HashSet<LP::Var>>();
 
+        if verify_only {
+            let all_edges = edge_vars
+                .iter()
+                .flat_map(|e| e.iter().flat_map(|v| v.iter()));
+            for edge in all_edges {
+                let is_selected = selected_edges.contains(edge);
+                let val = if is_selected { 1.0 } else { 0.0 };
+                lp.set_bounds(*edge, val, val);
             }
 
-        }
-        todo!();
-    }
+            lp.write_model();
 
+            let value = lp
+                .optimize()
+                .map(|(x, _, _)| x as f32)
+                .unwrap_or(f32::INFINITY);
+            return (
+                (value, f32::NEG_INFINITY),
+                Plan {
+                    vehicle_tasks: vec![],
+                },
+            );
+        } else {
+            // Just set it a as a partial MIP-start
+
+            let mut idxs = Vec::new();
+            let mut values = Vec::new();
+
+            let all_edges = edge_vars
+                .iter()
+                .flat_map(|e| e.iter().flat_map(|v| v.iter()));
+            for edge in all_edges {
+                let is_selected = selected_edges.contains(edge);
+                let val = if is_selected { 1.0 } else { 0.0 };
+
+                idxs.push(*edge);
+                values.push(val);
+            }
+
+            lp.set_partial_solution(&idxs, &values);
+        }
+    }
 
     println!("writing model");
     lp.write_model();
@@ -185,16 +239,18 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Op
     lp.set_time_limit(timeout);
     let result = lp.optimize();
 
-    if let Some((obj,bound,sol)) = result {
-
-        for (info,val) in var_info.iter().zip(sol.iter()) {
+    if let Some((obj, bound, sol)) = result {
+        for (info, val) in var_info.iter().zip(sol.iter()) {
             if *val >= 1e-3 {
                 match info {
-                    VarInfo::Edge(v_idx,n1_idx,e_idx) => {
+                    VarInfo::Edge(v_idx, n1_idx, e_idx) => {
                         let n2_idx = nodes[*n1_idx].outgoing[*e_idx].0 as usize;
-                        println!("v{}: {:?} --> {:?}", v_idx, nodes[*n1_idx].state, nodes[n2_idx].state);
+                        println!(
+                            "v{}: {:?} --> {:?}",
+                            v_idx, nodes[*n1_idx].state, nodes[n2_idx].state
+                        );
                     }
-                    VarInfo::Battery(_, _) => {},
+                    VarInfo::Battery(_, _) => {}
                 }
             }
         }
@@ -203,8 +259,13 @@ pub fn solve<LP :LPSolver>(problem: &Problem, timeout :f64, initial_solution :Op
             vehicle_tasks: vec![],
         };
 
-        ((obj as f32,bound as f32),plan)
+        ((obj as f32, bound as f32), plan)
     } else {
-        ((f32::INFINITY, f32::NEG_INFINITY), Plan { vehicle_tasks: vec![] })
+        (
+            (f32::INFINITY, f32::NEG_INFINITY),
+            Plan {
+                vehicle_tasks: vec![],
+            },
+        )
     }
 }

@@ -286,7 +286,7 @@ pub fn plan_vehicle(
         } + edge.1.batt;
 
         // Tolerance on battery label matching.
-        let required_batt = required_batt - (0.001 * required_batt).abs();
+        let required_batt = required_batt - (0.0001 * required_batt).abs();
 
         trace!(
             "req_batt {} prevlabels {:?}",

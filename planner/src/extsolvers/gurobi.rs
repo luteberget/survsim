@@ -119,4 +119,10 @@ impl LPSolver for GurobiSolver {
         self.grb.write("test_grb.lp").unwrap();
         self.grb.write("test_grb.mps").unwrap();
     }
+
+    fn set_partial_solution(&mut self, idxs: &[Self::Var], values: &[f64]) {
+        for (var, val) in idxs.iter().zip(values.iter()) {
+            self.grb.set_obj_attr(grb::attr::Start, var, *val).unwrap();
+        }
+    }
 }

@@ -1,8 +1,8 @@
 pub mod highs;
 pub mod gurobi;
-
+use std::hash::Hash;
 pub trait LPSolver {
-    type Var : Copy+Clone;
+    type Var : Copy+Clone+Eq+Hash;
     fn new() -> Self;
     fn add_var(&mut self, cost:f64 ) -> Self::Var;
     fn set_binary(&mut self, var :Self::Var);
@@ -13,4 +13,5 @@ pub trait LPSolver {
     fn inf(&self) -> f64;
     fn num_vars(&self) -> usize;
     fn write_model(&mut self) ;
+    fn set_partial_solution(&mut self, idxs :&[Self::Var], values :&[f64]);
 }
