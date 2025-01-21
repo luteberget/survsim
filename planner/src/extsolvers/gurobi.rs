@@ -50,6 +50,12 @@ impl LPSolver for GurobiSolver {
         // println!("Setting lb {:?} to {:?} {:?}", var, lower, upper);
         self.grb.set_obj_attr(grb::attr::LB, &var, lower).unwrap();
         self.grb.set_obj_attr(grb::attr::UB, &var, upper).unwrap();
+
+        if lower == upper {
+            self.grb.set_obj_attr(grb::attr::IISLBForce, &var, 1).unwrap();
+            self.grb.set_obj_attr(grb::attr::IISUBForce, &var, 1).unwrap();
+        }
+
     }
 
     fn add_constraint(&mut self, lb: f64, ub: f64, idxs: &[Self::Var], coeffs: &[f64]) {
@@ -103,7 +109,11 @@ impl LPSolver for GurobiSolver {
 
                 Some((obj, bound, sol))
             }
-            _ => None,
+            _ => {
+                // self.grb.compute_iis().unwrap();
+                // self.grb.write("iis.ilp").unwrap();
+                None
+            }
         }
     }
 

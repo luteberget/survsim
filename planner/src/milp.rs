@@ -186,7 +186,7 @@ pub fn solve<LP: LPSolver>(
                 let edge_lookup = &edge_lookup;
                 ss.iter()
                     .zip(ss.iter().skip(1))
-                    .map(move |(s1, s2)| edge_lookup[&(v, *s1, *s2)])
+                    .map(move |((s1,_), (s2,_))| edge_lookup[&(v, *s1, *s2)])
             })
             .collect::<HashSet<LP::Var>>();
 
@@ -205,7 +205,7 @@ pub fn solve<LP: LPSolver>(
             let value = lp
                 .optimize()
                 .map(|(x, _, _)| x as f32)
-                .unwrap_or(f32::INFINITY);
+                .expect("verify solution failed");
             return (
                 (value, f32::NEG_INFINITY),
                 Plan {

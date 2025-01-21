@@ -9,7 +9,7 @@ use survsim_structs::{
     TaskRef,
 };
 
-use crate::txgraph::{Node, State};
+use crate::txgraph::{EdgeData, Node, State};
 
 #[derive(Debug, Clone)]
 pub struct BattCycPlan {
@@ -44,12 +44,30 @@ pub fn cyc_start_end(plan: &BattCycPlan, nodes: &[Node]) -> ((usize, usize), (i3
         .path
         .iter()
         .position(|node_idx| nodes[*node_idx as usize].state.loc == Location::SinkNode)
-        .unwrap()
-        + 1;
+        .unwrap();
 
     let start_time = nodes[plan.path[start_path_idx] as usize].state.time;
-    let end_time = nodes[plan.path[end_path_idx - 1] as usize].state.time;
+    let path_end_time = nodes[plan.path[end_path_idx] as usize].state.time;
+
+    let time_step = get_txgraph_time_step(nodes);
+    let end_time = path_end_time + time_step;
+
     ((start_path_idx, end_path_idx), (start_time, end_time))
+}
+
+fn get_txgraph_time_step(nodes: &[Node]) -> i32 {
+    let b1 = nodes
+        .iter()
+        .find(|n| n.state.loc == Location::Base)
+        .unwrap();
+    let b2 = b1
+        .outgoing
+        .iter()
+        .map(|(n, _, _)| &nodes[*n as usize])
+        .find(|n| n.state.loc == Location::Base)
+        .unwrap();
+    
+    b2.state.time - b1.state.time
 }
 
 pub fn cyc_production_intervals(plan: &BattCycPlan, nodes: &[Node]) -> Vec<(TaskRef, i32, i32)> {
@@ -113,7 +131,7 @@ pub fn get_plan_prod_nodes(nodes: &[Node], path: &[u32], mut f: impl FnMut(u32))
     }
 }
 
-pub struct TxGraphPlan(pub Vec<Vec<State>>);
+pub struct TxGraphPlan(pub Vec<Vec<(State, Option<EdgeData>)>>);
 
 pub fn convert_batt_cyc_plan(
     problem: &Problem,
@@ -159,9 +177,9 @@ pub fn convert_batt_cyc_plan(
         steps
     };
 
-    let mut v_txplans: Vec<Vec<State>> = vehicle_start_nodes
+    let mut v_txplans: Vec<Vec<(State, Option<EdgeData>)>> = vehicle_start_nodes
         .iter()
-        .map(|(n, _)| vec![nodes[*n as usize].state])
+        .map(|(n, _)| vec![(nodes[*n as usize].state, None)])
         .collect::<Vec<_>>();
 
     let n_prod_itervals = components
@@ -177,9 +195,12 @@ pub fn convert_batt_cyc_plan(
 
     for plan_idx in start_time_order {
         let plan = &components[plan_idx];
+
         let ((start_path_idx, end_path_idx), (start_time, end_time)) =
             start_and_end_times[plan_idx];
-        println!("treating plan {:?}", plan);
+        // println!("treating plan {:?}", plan);
+        println!(" treating plan {}", cyc_plan_info(plan, nodes));
+
         let v_init = match nodes[plan.path[0] as usize].state.loc {
             Location::DroneInitial(d) => Some(d),
             _ => None,
@@ -212,18 +233,25 @@ pub fn convert_batt_cyc_plan(
             .is_infinite());
         vplan.last_mut().unwrap().1.finish_cond.time = Some(start_time as f32);
 
-        assert!(v_txplans[v_idx].last().unwrap().time <= start_time);
-        while v_txplans[v_idx].last().unwrap().time < start_time {
-            assert!(v_txplans[v_idx].last().unwrap().loc == Location::Base);
+        assert!(v_txplans[v_idx].last().unwrap().0.time <= start_time);
+        while v_txplans[v_idx].last().unwrap().0.time < start_time {
+            assert!(v_txplans[v_idx].last().unwrap().0.loc == Location::Base);
             // find next time stamp
             let pos = all_time_steps
-                .binary_search(&v_txplans[v_idx].last().unwrap().time)
+                .binary_search(&v_txplans[v_idx].last().unwrap().0.time)
                 .unwrap();
             let next_time = all_time_steps[pos + 1];
-            v_txplans[v_idx].push(State {
-                loc: Location::Base,
-                time: next_time,
-            });
+            v_txplans[v_idx].push((
+                State {
+                    loc: Location::Base,
+                    time: next_time,
+                },
+                // Base edges should be neg-inf batt and zero cost.
+                Some(EdgeData {
+                    batt: -problem.battery_capacity,
+                    cost: 0.0,
+                }),
+            ));
         }
 
         for (n1, n2) in plan.path[start_path_idx..end_path_idx]
@@ -231,14 +259,19 @@ pub fn convert_batt_cyc_plan(
             .zip(plan.path[start_path_idx + 1..].iter())
         {
             // We should already be at n1.
-            assert!(v_txplans[v_idx].last().unwrap() == &nodes[*n1 as usize].state);
-            v_txplans[v_idx].push(nodes[*n2 as usize].state);
+            assert!(v_txplans[v_idx].last().unwrap().0 == nodes[*n1 as usize].state);
+            let edge = nodes[*n1 as usize]
+                .outgoing
+                .iter()
+                .find_map(|(n, d, _)| (*n == *n2).then_some(*d))
+                .unwrap();
+            v_txplans[v_idx].push((nodes[*n2 as usize].state, Some(edge)));
 
             // Rewrite sink to base
             {
                 let vtx_last = v_txplans[v_idx].last_mut().unwrap();
-                if vtx_last.loc == Location::SinkNode {
-                    vtx_last.loc = Location::Base;
+                if vtx_last.0.loc == Location::SinkNode {
+                    vtx_last.0.loc = Location::Base;
                 }
             }
 
@@ -333,23 +366,49 @@ pub fn convert_batt_cyc_plan(
                 finish_cond: Cond::time(f32::INFINITY),
             },
         ));
+
+        // in the v_txplan, we add the recharge edge at the end of the plan (unless we are at the end of the time horizon)
+        assert!(v_txplans[v_idx].last().unwrap().0.loc == Location::Base);
+        if v_txplans[v_idx].last().unwrap().0.time < *all_time_steps.last().unwrap() {
+            let pos = all_time_steps
+                .binary_search(&v_txplans[v_idx].last().unwrap().0.time)
+                .unwrap();
+            let next_time = all_time_steps[pos + 1];
+
+            v_txplans[v_idx].push((
+                State {
+                    loc: Location::Base,
+                    time: next_time,
+                },
+                Some(EdgeData {
+                    batt: -problem.battery_capacity,
+                    cost: 0.0,
+                }),
+            ));
+        }
     }
 
     // Extend the plans to the end of the plnning horizon
     let last_time = *all_time_steps.last().unwrap();
     for (v_idx, _v) in problem.vehicles.iter().enumerate() {
-        assert!(v_txplans[v_idx].last().unwrap().time <= last_time);
-        while v_txplans[v_idx].last().unwrap().time < last_time {
-            assert!(v_txplans[v_idx].last().unwrap().loc == Location::Base);
+        assert!(v_txplans[v_idx].last().unwrap().0.time <= last_time);
+        while v_txplans[v_idx].last().unwrap().0.time < last_time {
+            assert!(v_txplans[v_idx].last().unwrap().0.loc == Location::Base);
             // find next time stamp
             let pos = all_time_steps
-                .binary_search(&v_txplans[v_idx].last().unwrap().time)
+                .binary_search(&v_txplans[v_idx].last().unwrap().0.time)
                 .unwrap();
             let next_time = all_time_steps[pos + 1];
-            v_txplans[v_idx].push(State {
-                loc: Location::Base,
-                time: next_time,
-            });
+            v_txplans[v_idx].push((
+                State {
+                    loc: Location::Base,
+                    time: next_time,
+                },
+                Some(EdgeData {
+                    batt: -problem.battery_capacity,
+                    cost: 0.0,
+                }),
+            ));
         }
     }
 

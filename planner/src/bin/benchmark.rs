@@ -61,41 +61,80 @@ fn get_instance_files() -> std::vec::Vec<(std::path::PathBuf, InstanceSpec)> {
 pub fn main() {
     use core::f32;
     use std::{fs::read_to_string, time::Instant};
-    type Solver = fn(&Problem) -> ((f32,f32), Plan);
+    type Solver = fn(&Problem) -> ((f32, f32), Plan);
 
-    fn gurobi_5sec(problem: &Problem) -> ((f32,f32), Plan) {
+    fn gurobi_5sec(problem: &Problem) -> ((f32, f32), Plan) {
         survsim_planner::milp::solve::<GurobiSolver>(problem, 5.0, None, false)
     }
-    fn gurobi_30sec(problem: &Problem) -> ((f32,f32), Plan) {
+    fn gurobi_30sec(problem: &Problem) -> ((f32, f32), Plan) {
         survsim_planner::milp::solve::<GurobiSolver>(problem, 30.0, None, false)
     }
-    fn highs_5sec(problem: &Problem) -> ((f32,f32), Plan) {
+    fn highs_5sec(problem: &Problem) -> ((f32, f32), Plan) {
         survsim_planner::milp::solve::<HighsSolverInstance>(problem, 5.0, None, false)
     }
-    fn highs_30sec(problem: &Problem) -> ((f32,f32), Plan) {
+    fn highs_30sec(problem: &Problem) -> ((f32, f32), Plan) {
         survsim_planner::milp::solve::<HighsSolverInstance>(problem, 30.0, None, false)
     }
-    fn colgen_5sec(problem: &Problem) -> ((f32,f32), Plan) {
+
+    fn gurobi_5sec_greedymipstart(problem: &Problem) -> ((f32, f32), Plan) {
+        let (_, _, init) = survsim_planner::greedy::solve_greedy_cycles(problem, false);
+        survsim_planner::milp::solve::<GurobiSolver>(problem, 5.0, Some(&init), false)
+    }
+    fn gurobi_30sec_greedymipstart(problem: &Problem) -> ((f32, f32), Plan) {
+        let (_, _, init) = survsim_planner::greedy::solve_greedy_cycles(problem, false);
+        survsim_planner::milp::solve::<GurobiSolver>(problem, 30.0, Some(&init), false)
+    }
+    fn highs_5sec_greedymipstart(problem: &Problem) -> ((f32, f32), Plan) {
+        let (_, _, init) = survsim_planner::greedy::solve_greedy_cycles(problem, false);
+        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 5.0, Some(&init), false)
+    }
+    fn highs_30sec_greedymipstart(problem: &Problem) -> ((f32, f32), Plan) {
+        let (_, _, init) = survsim_planner::greedy::solve_greedy_cycles(problem, false);
+        survsim_planner::milp::solve::<HighsSolverInstance>(problem, 30.0, Some(&init), false)
+    }
+
+    fn colgen_5sec(problem: &Problem) -> ((f32, f32), Plan) {
         survsim_planner::colgen::HeuristicColgenSolver::new(problem).solve_price_and_branch(5.0)
     }
-    fn colgen_30sec(problem: &Problem) -> ((f32,f32), Plan) {
+    fn colgen_30sec(problem: &Problem) -> ((f32, f32), Plan) {
         survsim_planner::colgen::HeuristicColgenSolver::new(problem).solve_price_and_branch(30.0)
     }
-    fn colgen_5sec_greedyinit(problem: &Problem) -> ((f32,f32), Plan) {
-        survsim_planner::colgen::HeuristicColgenSolver::new(problem).add_greedy_columns().solve_price_and_branch(5.0)
+    fn colgen_5sec_greedyinit(problem: &Problem) -> ((f32, f32), Plan) {
+        survsim_planner::colgen::HeuristicColgenSolver::new(problem)
+            .add_greedy_columns()
+            .solve_price_and_branch(5.0)
     }
-    fn colgen_30sec_greedyinit(problem: &Problem) -> ((f32,f32), Plan) {
-        survsim_planner::colgen::HeuristicColgenSolver::new(problem).add_greedy_columns().solve_price_and_branch(30.0)
+    fn colgen_30sec_greedyinit(problem: &Problem) -> ((f32, f32), Plan) {
+        survsim_planner::colgen::HeuristicColgenSolver::new(problem)
+            .add_greedy_columns()
+            .solve_price_and_branch(30.0)
+    }
+
+    fn greedy_fast(problem: &Problem) -> ((f32, f32), Plan) {
+        let (b, p, _) = survsim_planner::greedy::solve_greedy_cycles(problem, false);
+        (b, p)
+    }
+
+    fn greedy_verify(problem: &Problem) -> ((f32, f32), Plan) {
+        let (b, p, _) = survsim_planner::greedy::solve_greedy_cycles(problem, true);
+        (b, p)
     }
 
     let solvers: Vec<(&str, Solver)> = vec![
-        // ("gurobi_5s", gurobi_5sec),
-        // ("gurobi_30s", gurobi_30sec),
-        // // ("highs_5s", highs_5sec),
-        // // ("highs_30s", highs_30sec),
-        // ("colgen_30s", colgen_30sec),
-        // ("colgen_30s_gi", colgen_30sec_greedyinit),
-        ("greedy", survsim_planner::greedy::solve_greedy_cycles),
+        ("greedy", greedy_fast),
+        ("greedy_verify", greedy_verify),
+        ("gurobi_5s", gurobi_5sec),
+        ("gurobi_30s", gurobi_30sec),
+        ("highs_5s", highs_5sec),
+        ("highs_30s", highs_30sec),
+        ("gurobi_5s_gi", gurobi_5sec_greedymipstart),
+        ("gurobi_30s_gi", gurobi_30sec_greedymipstart),
+        ("highs_5s_gi", highs_5sec_greedymipstart),
+        ("highs_30s_gi", highs_30sec_greedymipstart),
+        ("colgen_5s", colgen_5sec),
+        ("colgen_30s", colgen_30sec),
+        ("colgen_5s_gi", colgen_5sec_greedyinit),
+        ("colgen_30s_gi", colgen_30sec_greedyinit),
     ];
 
     println!("---------------------------");
@@ -116,7 +155,7 @@ pub fn main() {
     let mut results: Vec<Vec<Result>> = Vec::new();
 
     println!("# RUNNING {} INSTANCES", instance_files.len());
-    for (filename, instance_spec) in instance_files.iter() {
+    for (filename, _instance_spec) in instance_files.iter() {
         results.push(Vec::new());
         if filename.as_os_str().to_string_lossy().ends_with(".json") {
             let _p = hprof::enter("instance");
@@ -124,7 +163,7 @@ pub fn main() {
                 let _p = hprof::enter("read");
 
                 let problem: survsim_structs::problem::Problem =
-                    serde_json::from_str(&read_to_string(&filename).unwrap()).unwrap();
+                    serde_json::from_str(&read_to_string(filename).unwrap()).unwrap();
 
                 println!(
                     " * instance {} with {} vehicles {} pois",
@@ -139,13 +178,12 @@ pub fn main() {
                 println!("   - solving with: \"{}\"", solver_name);
                 let _p0 = hprof::enter("plan");
                 let t0 = Instant::now();
-                let ((obj,bound), plan) = solver_fn(&problem);
+                let ((obj, bound), _plan) = solver_fn(&problem);
                 let time = t0.elapsed().as_secs_f32();
-                results.last_mut().unwrap().push(Result {
-                    time,
-                    obj,
-                    bound,
-                });
+                results
+                    .last_mut()
+                    .unwrap()
+                    .push(Result { time, obj, bound });
             }
         }
     }

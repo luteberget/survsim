@@ -141,7 +141,7 @@ pub fn test_regression10() {
 pub fn test_regression11() {
     let _ = env_logger::try_init();
     let problem = serde_json::from_str(&std::fs::read_to_string("../regression11.json").unwrap()).unwrap();
-    let x = solve_greedy_cycles(&problem);
+    let x = solve_greedy_cycles(&problem, true);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     x.1.print();
@@ -151,7 +151,7 @@ pub fn test_regression11() {
 pub fn test_regression12() {
     let _ = env_logger::try_init();
     let problem = serde_json::from_str(&std::fs::read_to_string("../regression12.json").unwrap()).unwrap();
-    let x = solve_greedy_cycles(&problem);
+    let x = solve_greedy_cycles(&problem, true);
     #[cfg(feature="prof")]
     hprof::profiler().print_timing();
     x.1.print();

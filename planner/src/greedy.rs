@@ -1,6 +1,7 @@
+use crate::extsolvers::gurobi::GurobiSolver;
 use crate::extsolvers::highs::HighsSolverInstance;
-use crate::milp;
 use crate::shortest_path::plan_vehicle;
+use crate::{milp, round_time};
 use std::collections::HashSet;
 use survsim_structs::report::Location;
 use survsim_structs::{plan::Plan, problem::Problem};
@@ -8,6 +9,7 @@ use tinyvec::TinyVec;
 
 use crate::decomposition::{
     convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes, BattCycPlan,
+    TxGraphPlan,
 };
 use crate::txgraph::{self, production_edge, Node, DEFAULT_TIME_HORIZON};
 
@@ -141,8 +143,8 @@ pub fn get_greedy_cycles(
     (total_cost, cyc_plans)
 }
 
-pub fn solve_greedy_cycles(problem: &Problem) -> ((f32, f32), Plan) {
-    let (base_node, vehicle_start_nodes, mut nodes) =
+pub fn solve_greedy_cycles(problem: &Problem, verify :bool) -> ((f32, f32), Plan, TxGraphPlan) {
+    let (base_node, vehicle_start_nodes, nodes) =
         txgraph::build_graph(problem, DEFAULT_TIME_HORIZON, 30, true);
 
     let vehicle_start_nodes = vehicle_start_nodes
@@ -167,10 +169,32 @@ pub fn solve_greedy_cycles(problem: &Problem) -> ((f32, f32), Plan) {
     // VERIFY
     #[cfg(feature = "highs")]
     {
+        if verify {
+        assert!(is_battery_feasible(problem, &tx_graph_plan));
+        milp::solve::<GurobiSolver>(problem, 5.0, Some(&tx_graph_plan), true);
         milp::solve::<HighsSolverInstance>(problem, 5.0, Some(&tx_graph_plan), true);
+    }
     }
 
     // plan.print();
     // panic!("success {}", total_cost);
-    ((total_cost, f32::NEG_INFINITY), plan)
+    ((total_cost, f32::NEG_INFINITY), plan, tx_graph_plan)
+}
+
+pub fn is_battery_feasible(problem: &Problem, edges: &TxGraphPlan) -> bool {
+    for (v_idx, (vehicle, v_edges)) in problem.vehicles.iter().zip(edges.0.iter()).enumerate() {
+        let mut batt = vehicle.start_battery;
+        assert!(round_time(vehicle.start_time, 30) == v_edges[0].0.time);
+
+        for (s1, (s2, e)) in v_edges.iter().zip(v_edges.iter().skip(1)) {
+            let e = e.unwrap();
+            batt = (batt - e.batt).min(problem.battery_capacity);
+            println!("v{} {:?} -- {:?} -- batt = {}", v_idx, s1, s2, batt);
+            if batt < 0.0 {
+                return false;
+            }
+        }
+    }
+
+    true
 }
