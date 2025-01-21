@@ -74,6 +74,18 @@ impl LPSolver for HighsSolverInstance {
         let status = HighsStatus::try_from(retval);
         assert!(status == Ok(HighsStatus::OK));
     }
+
+    fn set_verbose(&mut self) {
+        unsafe {
+            highs_sys::Highs_setBoolOptionValue(
+                self.ptr,
+                CStr::from_bytes_with_nul("output_flag\0".as_bytes())
+                    .unwrap()
+                    .as_ptr(),
+                1,
+            )
+        };
+    }
 }
 
 impl HighsSolverInstance {
@@ -113,15 +125,17 @@ impl HighsSolverInstance {
         //             .as_ptr(),
         //     )
         // };
+
         unsafe {
             highs_sys::Highs_setBoolOptionValue(
                 ptr,
                 CStr::from_bytes_with_nul("output_flag\0".as_bytes())
                     .unwrap()
                     .as_ptr(),
-                1,
+                0,
             )
         };
+
         // unsafe {
         //     highs_sys::Highs_setIntOptionValue(
         //         ptr,
@@ -248,8 +262,7 @@ impl HighsSolverInstance {
     }
 
     pub fn num_vars(&self) -> usize {
-        let n_cols = unsafe { highs_sys::Highs_getNumCol(self.ptr) } as usize;
-        n_cols
+        unsafe { highs_sys::Highs_getNumCol(self.ptr) as usize }
     }
 
     pub fn optimize(

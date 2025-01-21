@@ -1,4 +1,4 @@
-use std::fs::read_dir;
+use std::{error::Error, fs::read_dir, path::PathBuf};
 
 #[cfg(not(feature = "prof"))]
 pub fn main() {
@@ -35,7 +35,7 @@ fn get_instance_files() -> std::vec::Vec<(std::path::PathBuf, InstanceSpec)> {
                 let mut fields = split.split("_").collect::<Vec<_>>();
                 let idx = fields.pop().unwrap().parse::<usize>().unwrap();
                 let vehicles = fields.pop().unwrap()[1..].parse::<usize>().unwrap();
-                let contacts = if *fields.last().unwrap() == "ctc" {
+                let contacts = if fields.last().unwrap().starts_with("ctc") {
                     fields.pop().unwrap()[3..].parse::<usize>().unwrap_or(1)
                 } else {
                     0
@@ -123,6 +123,10 @@ pub fn main() {
     let solvers: Vec<(&str, Solver)> = vec![
         ("greedy", greedy_fast),
         ("greedy_verify", greedy_verify),
+        ("colgen_5s", colgen_5sec),
+        ("colgen_30s", colgen_30sec),
+        ("colgen_5s_gi", colgen_5sec_greedyinit),
+        ("colgen_30s_gi", colgen_30sec_greedyinit),
         ("gurobi_5s", gurobi_5sec),
         ("gurobi_30s", gurobi_30sec),
         ("highs_5s", highs_5sec),
@@ -131,10 +135,6 @@ pub fn main() {
         ("gurobi_30s_gi", gurobi_30sec_greedymipstart),
         ("highs_5s_gi", highs_5sec_greedymipstart),
         ("highs_30s_gi", highs_30sec_greedymipstart),
-        ("colgen_5s", colgen_5sec),
-        ("colgen_30s", colgen_30sec),
-        ("colgen_5s_gi", colgen_5sec_greedyinit),
-        ("colgen_30s_gi", colgen_30sec_greedyinit),
     ];
 
     println!("---------------------------");
@@ -240,4 +240,51 @@ pub fn main() {
 
     let written = String::from_utf8(tablewriter.into_inner().unwrap()).unwrap();
     println!("{}", written);
+
+    write_csv(
+        &solvers.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
+        &instance_files,
+        &results,
+    )
+    .unwrap();
+}
+
+fn write_csv(
+    solver_names: &[&str],
+    instance_files: &[(PathBuf, InstanceSpec)],
+    results: &[Vec<Result>],
+) -> std::result::Result<(), Box<dyn Error>> {
+    let mut wtr = csv::Writer::from_path("benchmark.csv")?;
+    let mut header: Vec<String> = vec![
+        "filename".to_string(),
+        "contacts".to_string(),
+        "vehicles".to_string(),
+        "instance_idx".to_string(),
+    ];
+    for solver in solver_names.iter() {
+        header.push(format!("{}--time", solver));
+        header.push(format!("{}--obj", solver));
+        header.push(format!("{}--bound", solver));
+    }
+
+    wtr.write_record(&header)?;
+
+    for ((_filename, instance), solver_results) in instance_files.iter().zip(results.iter()) {
+        let mut row: Vec<String> = vec![
+            instance.name.to_string(),
+            format!("{}", instance.contacts),
+            format!("{}", instance.vehicles),
+            format!("{}", instance.idx),
+        ];
+        for (_solver_name, result) in solver_names.iter().zip(solver_results.iter()) {
+            row.push(format!("{:.2}", result.time));
+            row.push(format!("{:.2}", result.obj));
+            row.push(format!("{:.2}", result.bound));
+        }
+
+        wtr.write_record(&row)?;
+    }
+
+    wtr.flush()?;
+    Ok(())
 }

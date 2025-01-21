@@ -14,4 +14,5 @@ pub trait LPSolver {
     fn num_vars(&self) -> usize;
     fn write_model(&mut self) ;
     fn set_partial_solution(&mut self, idxs :&[Self::Var], values :&[f64]);
+    fn set_verbose(&mut self);
 }

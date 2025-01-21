@@ -20,7 +20,7 @@ use crate::{
         convert_batt_cyc_plan, cyc_plan_info, get_plan_edges_in_air, get_plan_prod_nodes,
         BattCycPlan,
     },
-    extsolvers::highs::HighsSolverInstance,
+    extsolvers::{highs::HighsSolverInstance, LPSolver},
     greedy,
     shortest_path::plan_vehicle,
     txgraph::{self, production_edge, Node, DEFAULT_TIME_HORIZON},
@@ -164,7 +164,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                     }
                     path.reverse();
                     let plan = BattCycPlan { cost: 1000.0, path };
-                    println!("TRIVIAL INIT column {}", cyc_plan_info(&plan, &self.nodes));
+                    // println!("TRIVIAL INIT column {}", cyc_plan_info(&plan, &self.nodes));
                     self.columns.push(plan);
                     break;
                 } else {
@@ -206,11 +206,11 @@ impl<'a> HeuristicColgenSolver<'a> {
                 cost: solution.cost,
                 path: solution.path,
             };
-            println!(
-                " Added initial column for vehicle{} {}",
-                v_idx,
-                cyc_plan_info(&new_plan, &self.nodes)
-            );
+            // println!(
+            //     " Added initial column for vehicle{} {}",
+            //     v_idx,
+            //     cyc_plan_info(&new_plan, &self.nodes)
+            // );
 
             // self.make_fixed_plan(new_plan);
             self.fixed_plans.push(new_plan);
@@ -219,6 +219,7 @@ impl<'a> HeuristicColgenSolver<'a> {
 
     fn solve_binary_program(&mut self, timeout: f64) -> ((f32, f32), Plan) {
         let mut rmp = HighsSolverInstance::new();
+        rmp.set_verbose();
         let mut solution_buf: Vec<f64> = Default::default();
 
         let init_nodes_cstrs = self
@@ -230,7 +231,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 (!self.fixed_vehicle_starts[v_idx] && v.start_airborne).then(|| {
                     (
                         self.vehicle_start_nodes[v_idx].0,
-                        rmp.add_empty_constr(1.0, rmp.inf()),
+                        rmp.add_empty_constr(1.0, 1.0),
                     )
                 })
             })
@@ -267,6 +268,7 @@ impl<'a> HeuristicColgenSolver<'a> {
             rmp.set_binary(var);
         }
 
+        solution_buf.resize(self.columns.len(), f64::NAN);
         rmp.set_time_limit(timeout);
         let obj = rmp.optimize(&mut solution_buf, &mut []).unwrap().0 as f32;
         let cycles = self
@@ -276,6 +278,7 @@ impl<'a> HeuristicColgenSolver<'a> {
             .filter(|(p, v)| (**v > 0.5))
             .map(|(p, _)| p.clone())
             .collect::<Vec<_>>();
+        // println!("Solve binary program produced {} cycles", cycles.len());
 
         let (plan, _) =
             convert_batt_cyc_plan(self.problem, &self.nodes, &self.vehicle_start_nodes, cycles);
@@ -296,8 +299,8 @@ impl<'a> HeuristicColgenSolver<'a> {
         let mut shadow_prices: Vec<f64> = Default::default();
         let start_time = std::time::Instant::now();
 
-        println!(" Time capacity {:?}", self.time_steps_vehicles);
-        println!("FIXED {:?}", self.fixed_vehicle_starts);
+        // println!(" Time capacity {:?}", self.time_steps_vehicles);
+        // println!("FIXED {:?}", self.fixed_vehicle_starts);
         let init_nodes_cstrs = self
             .problem
             .vehicles
@@ -307,7 +310,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 (!self.fixed_vehicle_starts[v_idx] && v.start_airborne).then(|| {
                     (
                         self.vehicle_start_nodes[v_idx].0,
-                        rmp.add_empty_constr(1.0, rmp.inf()),
+                        rmp.add_empty_constr(1.0, 1.0),
                     )
                 })
             })
@@ -418,19 +421,19 @@ impl<'a> HeuristicColgenSolver<'a> {
                 // }
             }
 
-            rmp.write_model();
+            // rmp.write_model();
             // panic!("ok");
 
             let micro_obj = rmp.optimize(&mut [], &mut []).unwrap().0 as f32;
-            println!(
-                " optimized macro {} ({:.2}) cols {} micro {} ({:.2}) obj={:.2}",
-                self.fixed_plans.len(),
-                macro_obj,
-                self.columns.len(),
-                n_iterations,
-                micro_obj,
-                macro_obj + micro_obj
-            );
+            // println!(
+            //     " optimized macro {} ({:.2}) cols {} micro {} ({:.2}) obj={:.2}",
+            //     self.fixed_plans.len(),
+            //     macro_obj,
+            //     self.columns.len(),
+            //     n_iterations,
+            //     micro_obj,
+            //     macro_obj + micro_obj
+            // );
 
             let _p2 = hprof::enter("colgen iter after lp");
             #[cfg(feature = "prof")]
@@ -438,7 +441,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 solution_buf.push(Default::default());
             }
             rmp.get_solution(&mut solution_buf);
-            println!("solution {:?}", &solution_buf[..solution_buf.len().min(20)]);
+            // println!("solution {:?}", &solution_buf[..solution_buf.len().min(20)]);
             let col_ranking_cost = solution_buf
                 .iter()
                 .enumerate()
@@ -450,10 +453,18 @@ impl<'a> HeuristicColgenSolver<'a> {
                     })
                 })
                 .collect::<Vec<_>>();
-            println!("COL RANKING {:?}", col_ranking_cost);
+            // println!("COL RANKING {:?}", col_ranking_cost);
 
             let timing_out = start_time.elapsed().as_secs_f64() >= timeout;
-
+            println!(
+                " optimized macro {} ({:.2}) cols {} micro {} ({:.2}) obj={:.2} elapsed {:.2}s",
+                self.fixed_plans.len(),
+                macro_obj,
+                self.columns.len(),
+                n_iterations,
+                micro_obj,
+                macro_obj + micro_obj, start_time.elapsed().as_secs_f64()
+            );
             // Is it fixing time?
             const STILL_BEST_VALUE_TOLERANCE: f64 = 0.005;
             if stop_with_good_column {
@@ -466,13 +477,13 @@ impl<'a> HeuristicColgenSolver<'a> {
                     .enumerate()
                     .min_by_key(|(_i, x)| **x)
                 {
-                    println!(
-                        "BEST {}<{} {}   (costs {:?})",
-                        best_col,
-                        self.columns.len(),
-                        best_value,
-                        self.columns.iter().map(|c| c.cost).collect::<Vec<_>>()
-                    );
+                    // println!(
+                    //     "BEST {}<{} {}   (costs {:?})",
+                    //     best_col,
+                    //     self.columns.len(),
+                    //     best_value,
+                    //     self.columns.iter().map(|c| c.cost).collect::<Vec<_>>()
+                    // );
                     if current_best.column < self.columns.len()
                         && (current_best.column == best_col
                             || col_ranking_cost[current_best.column]
@@ -487,10 +498,10 @@ impl<'a> HeuristicColgenSolver<'a> {
                             STILL_BEST_ITERS
                         };
                         if current_best.n_iter >= iter_limit {
-                            println!(
-                                "   ITERS still best {} after iters {} value={}",
-                                STILL_BEST_ITERS, n_iterations, current_best.value
-                            );
+                            // println!(
+                            //     "   ITERS still best {} after iters {} value={}",
+                            //     STILL_BEST_ITERS, n_iterations, current_best.value
+                            // );
                             return Some(current_best.column);
                         }
                     } else {
@@ -503,7 +514,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                     }
 
                     if timing_out || n_iterations >= MAX_ITERS {
-                        println!("   ITERS maxed out {}  value={}", MAX_ITERS, best_value);
+                        // println!("   ITERS maxed out {}  value={}", MAX_ITERS, best_value);
                         return Some(best_col);
                     }
                 }
@@ -513,7 +524,7 @@ impl<'a> HeuristicColgenSolver<'a> {
                 return None;
             }
 
-            println!(" BEST COL {:?}", current_best);
+            // println!(" BEST COL {:?}", current_best);
 
             n_iterations += 1;
             rmp.get_dual_solution(&mut shadow_prices);
@@ -570,10 +581,10 @@ impl<'a> HeuristicColgenSolver<'a> {
                     cost: solution.cost,
                     path: solution.path,
                 };
-                println!(
-                    " Added new column {}",
-                    cyc_plan_info(&new_plan, &self.nodes)
-                );
+                // println!(
+                //     " Added new column {}",
+                //     cyc_plan_info(&new_plan, &self.nodes)
+                // );
                 self.columns.push(new_plan);
             } else {
                 // Infeasible subproblem. That shouldn't happen (starting and
@@ -697,13 +708,13 @@ fn set_shadow_prices(
     let mut total_init_cost = 0.0;
     for (node_idx, _row_idx) in init_cstrs.iter().filter_map(|x| x.as_ref()) {
         total_init_cost += -(shadow_prices[price_idx] as f32);
-        if shadow_prices[price_idx].abs() > 1e-3 {
-            println!(
-                "setting shadow price of {:?} to {}",
-                nodes[*node_idx as usize].state,
-                -(shadow_prices[price_idx] as f32)
-            );
-        }
+        // if shadow_prices[price_idx].abs() > 1e-3 {
+        //     println!(
+        //         "setting shadow price of {:?} to {}",
+        //         nodes[*node_idx as usize].state,
+        //         -(shadow_prices[price_idx] as f32)
+        //     );
+        // }
 
         for (_, _, x) in nodes[*node_idx as usize].outgoing.iter_mut() {
             *x = -(shadow_prices[price_idx] as f32);
@@ -727,10 +738,10 @@ fn set_shadow_prices(
         }
     }
 
-    println!(
-        "  total initcost {} vcost {} pcost {}",
-        total_init_cost, total_vehicle_cost, total_prod_cost
-    );
+    // println!(
+    //     "  total initcost {} vcost {} pcost {}",
+    //     total_init_cost, total_vehicle_cost, total_prod_cost
+    // );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -751,7 +762,7 @@ fn create_column(
     // Check if we are in an initial node.
     let first_loc = nodes[path[0] as usize].state.loc;
     if matches!(first_loc, Location::DroneInitial(_)) {
-        println!("initial node {} {:?}  {:?}", path[0], first_loc, init_cstrs);
+        // println!("initial node {} {:?}  {:?}", path[0], first_loc, init_cstrs);
         let init_cstr = init_cstrs
             .iter()
             .position(|x| x.filter(|(node, _)| *node == path[0]).is_some())

@@ -19,13 +19,14 @@ impl LPSolver for GurobiSolver {
     type Var = grb::Var;
 
     fn new() -> Self {
-        let grb = GLOBAL_GUROBI_ENV.with_borrow_mut(|e| {
+        let mut grb = GLOBAL_GUROBI_ENV.with_borrow_mut(|e| {
             if e.is_none() {
                 *e = Some(grb::Env::new("").unwrap());
             }
             let env = e.as_ref().unwrap();
             grb::Model::with_env("", env).unwrap()
         });
+        grb.set_param(grb::param::OutputFlag, 0).unwrap();
         Self {
             grb,
             added_vars: Vec::new(),
@@ -52,10 +53,13 @@ impl LPSolver for GurobiSolver {
         self.grb.set_obj_attr(grb::attr::UB, &var, upper).unwrap();
 
         if lower == upper {
-            self.grb.set_obj_attr(grb::attr::IISLBForce, &var, 1).unwrap();
-            self.grb.set_obj_attr(grb::attr::IISUBForce, &var, 1).unwrap();
+            self.grb
+                .set_obj_attr(grb::attr::IISLBForce, &var, 1)
+                .unwrap();
+            self.grb
+                .set_obj_attr(grb::attr::IISUBForce, &var, 1)
+                .unwrap();
         }
-
     }
 
     fn add_constraint(&mut self, lb: f64, ub: f64, idxs: &[Self::Var], coeffs: &[f64]) {
@@ -72,17 +76,17 @@ impl LPSolver for GurobiSolver {
             assert!(lb != -self.inf());
             self.grb.add_constr("", c!(expr >= lb)).unwrap();
         } else {
-            panic!("add range constraint");
-            self.grb
-                .add_range(
-                    "",
-                    grb::constr::RangeExpr {
-                        expr: grb::Expr::from(expr),
-                        ub,
-                        lb,
-                    },
-                )
-                .unwrap();
+            panic!("range constraints not supported");
+            // self.grb
+            //     .add_range(
+            //         "",
+            //         grb::constr::RangeExpr {
+            //             expr: grb::Expr::from(expr),
+            //             ub,
+            //             lb,
+            //         },
+            //     )
+            //     .unwrap();
         }
     }
 
@@ -134,5 +138,9 @@ impl LPSolver for GurobiSolver {
         for (var, val) in idxs.iter().zip(values.iter()) {
             self.grb.set_obj_attr(grb::attr::Start, var, *val).unwrap();
         }
+    }
+
+    fn set_verbose(&mut self) {
+        self.grb.set_param(grb::param::OutputFlag, 1).unwrap();
     }
 }
